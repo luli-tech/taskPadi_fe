@@ -14,15 +14,32 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => api.dashboard.stats(),
+  const { data: tasks = [], isLoading: statsLoading } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: () => api.tasks.list(),
   });
 
-  const { data: activity, isLoading: activityLoading } = useQuery({
-    queryKey: ["dashboard-activity"],
-    queryFn: () => api.dashboard.activity(),
+  const stats = {
+    totalTasks: tasks.length,
+    completedTasks: tasks.filter((t: any) => t.status === "Completed").length,
+    inProgressTasks: tasks.filter((t: any) => t.status === "InProgress").length,
+    teamMembers: 1,
+    upcomingDeadlines: tasks
+      .filter((t: any) => t.due_date && new Date(t.due_date) > new Date())
+      .slice(0, 5),
+  };
+
+  const { data: notifications = [], isLoading: activityLoading } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api.notifications.list(),
   });
+
+  const activity = notifications.slice(0, 5).map((n: any) => ({
+    id: n.id,
+    action: n.message,
+    timestamp: n.created_at,
+    user: { name: "You" },
+  }));
 
   const statCards = [
     {

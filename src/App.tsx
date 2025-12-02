@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Tasks from "./pages/Tasks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -38,7 +39,7 @@ const App = () => (
               }
             >
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="tasks" element={<div className="text-center py-20 text-muted-foreground">Tasks page coming soon...</div>} />
+              <Route path="tasks" element={<Tasks />} />
               <Route path="chat" element={<div className="text-center py-20 text-muted-foreground">Chat page coming soon...</div>} />
             </Route>
             <Route path="*" element={<NotFound />} />

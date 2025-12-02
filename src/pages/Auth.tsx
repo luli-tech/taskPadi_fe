@@ -46,7 +46,7 @@ export default function Auth() {
       await signup(
         formData.get("email") as string,
         formData.get("password") as string,
-        formData.get("name") as string
+        formData.get("username") as string
       );
       navigate("/dashboard");
     } catch (error) {
@@ -166,12 +166,12 @@ export default function Auth() {
                 <TabsContent value="signup">
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="signup-name">Full Name</Label>
+                      <Label htmlFor="signup-username">Username</Label>
                       <Input
-                        id="signup-name"
-                        name="name"
+                        id="signup-username"
+                        name="username"
                         type="text"
-                        placeholder="John Doe"
+                        placeholder="john_doe"
                         required
                       />
                     </div>

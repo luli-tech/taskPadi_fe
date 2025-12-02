@@ -28,29 +28,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     const token = localStorage.getItem("authToken");
-    if (token) {
+    const refreshToken = localStorage.getItem("refreshToken");
+    
+    if (token && refreshToken) {
       try {
-        const userData = await api.auth.me();
-        setUser(userData);
+        // Try to decode JWT to get user info (basic decode without verification)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUser({
+          id: payload.sub,
+          email: payload.email,
+          name: payload.username || payload.email,
+        });
       } catch (error) {
         localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken");
       }
     }
     setIsLoading(false);
   };
 
   const login = async (email: string, password: string) => {
-    const { token, user: userData } = await api.auth.login(email, password);
-    localStorage.setItem("authToken", token);
-    setUser(userData);
-    // Navigation will be handled by the component
+    const { access_token, refresh_token } = await api.auth.login(email, password);
+    localStorage.setItem("authToken", access_token);
+    localStorage.setItem("refreshToken", refresh_token);
+    
+    // Decode JWT to get user info
+    const payload = JSON.parse(atob(access_token.split('.')[1]));
+    setUser({
+      id: payload.sub,
+      email: payload.email,
+      name: payload.username || payload.email,
+    });
   };
 
-  const signup = async (email: string, password: string, name: string) => {
-    const { token, user: userData } = await api.auth.signup(email, password, name);
-    localStorage.setItem("authToken", token);
-    setUser(userData);
-    // Navigation will be handled by the component
+  const signup = async (email: string, password: string, username: string) => {
+    const { access_token, refresh_token } = await api.auth.signup(email, password, username);
+    localStorage.setItem("authToken", access_token);
+    localStorage.setItem("refreshToken", refresh_token);
+    
+    // Decode JWT to get user info
+    const payload = JSON.parse(atob(access_token.split('.')[1]));
+    setUser({
+      id: payload.sub,
+      email: payload.email,
+      name: payload.username || username,
+    });
   };
 
   const logout = async () => {
@@ -60,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Logout error:", error);
     }
     localStorage.removeItem("authToken");
+    localStorage.removeItem("refreshToken");
     setUser(null);
     // Navigation will be handled by the component
   };

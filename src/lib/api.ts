@@ -3,6 +3,44 @@ import { toast } from "sonner";
 // API configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
+// Token management
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach(callback => callback(token));
+  refreshSubscribers = [];
+}
+
+function addRefreshSubscriber(callback: (token: string) => void) {
+  refreshSubscribers.push(callback);
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (!refreshToken) {
+    throw new Error("No refresh token available");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  if (!response.ok) {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("refreshToken");
+    window.location.href = "/auth";
+    throw new Error("Failed to refresh token");
+  }
+
+  const data = await response.json();
+  localStorage.setItem("authToken", data.access_token);
+  localStorage.setItem("refreshToken", data.refresh_token);
+  return data.access_token;
+}
+
 interface RequestOptions extends RequestInit {
   requiresAuth?: boolean;
 }
@@ -35,11 +73,36 @@ async function apiRequest<T>(
 
     // Handle different status codes
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - clear token and redirect to login
-        localStorage.removeItem("authToken");
-        window.location.href = "/auth";
-        throw new Error("Session expired. Please login again.");
+      if (response.status === 401 && requiresAuth) {
+        // Try to refresh token
+        if (!isRefreshing) {
+          isRefreshing = true;
+          try {
+            const newToken = await refreshAccessToken();
+            isRefreshing = false;
+            onRefreshed(newToken);
+
+            // Retry original request with new token
+            headers["Authorization"] = `Bearer ${newToken}`;
+            return apiRequest<T>(endpoint, { ...options, headers });
+          } catch (refreshError) {
+            isRefreshing = false;
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("refreshToken");
+            window.location.href = "/auth";
+            throw new Error("Session expired. Please login again.");
+          }
+        } else {
+          // Wait for token refresh
+          return new Promise<T>((resolve, reject) => {
+            addRefreshSubscriber((token: string) => {
+              headers["Authorization"] = `Bearer ${token}`;
+              apiRequest<T>(endpoint, { ...options, headers })
+                .then(resolve)
+                .catch(reject);
+            });
+          });
+        }
       }
 
       if (response.status === 403) {
@@ -80,94 +143,109 @@ export const api = {
   // Auth endpoints
   auth: {
     login: (email: string, password: string) =>
-      apiRequest<{ token: string; user: any }>("/auth/login", {
+      apiRequest<{ access_token: string; refresh_token: string; user: any }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
         requiresAuth: false,
       }),
 
-    signup: (email: string, password: string, name: string) =>
-      apiRequest<{ token: string; user: any }>("/auth/signup", {
+    signup: (email: string, password: string, username: string) =>
+      apiRequest<{ access_token: string; refresh_token: string; user: any }>("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, username }),
         requiresAuth: false,
       }),
 
-    logout: () =>
-      apiRequest<void>("/auth/logout", {
+    logout: () => {
+      const refreshToken = localStorage.getItem("refreshToken");
+      return apiRequest<void>("/auth/logout", {
         method: "POST",
-      }),
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+    },
 
-    me: () => apiRequest<any>("/auth/me"),
+    googleAuth: () => {
+      window.location.href = `${API_BASE_URL}/auth/google`;
+    },
   },
 
   // Task endpoints
   tasks: {
-    list: (filters?: any) =>
-      apiRequest<any[]>(`/tasks${filters ? `?${new URLSearchParams(filters)}` : ""}`),
+    list: (filters?: {
+      status?: string;
+      priority?: string;
+      due_date?: string;
+      search?: string;
+    }) =>
+      apiRequest<any[]>(`/tasks${filters ? `?${new URLSearchParams(filters as any)}` : ""}`),
 
     get: (id: string) => apiRequest<any>(`/tasks/${id}`),
 
-    create: (data: any) =>
+    create: (data: {
+      title: string;
+      description?: string;
+      priority?: "Low" | "Medium" | "High" | "Urgent";
+      due_date?: string;
+      reminder_time?: string;
+    }) =>
       apiRequest<any>("/tasks", {
         method: "POST",
         body: JSON.stringify(data),
       }),
 
-    update: (id: string, data: any) =>
+    update: (id: string, data: {
+      title?: string;
+      description?: string;
+      priority?: "Low" | "Medium" | "High" | "Urgent";
+      due_date?: string;
+      reminder_time?: string;
+    }) =>
       apiRequest<any>(`/tasks/${id}`, {
-        method: "PATCH",
+        method: "PUT",
         body: JSON.stringify(data),
+      }),
+
+    updateStatus: (id: string, status: "Pending" | "InProgress" | "Completed" | "Archived") =>
+      apiRequest<any>(`/tasks/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
       }),
 
     delete: (id: string) =>
       apiRequest<void>(`/tasks/${id}`, {
         method: "DELETE",
       }),
+  },
 
-    addComment: (taskId: string, comment: string) =>
-      apiRequest<any>(`/tasks/${taskId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ comment }),
+  // Notifications
+  notifications: {
+    list: () => apiRequest<any[]>("/notifications"),
+    markAsRead: (id: string) =>
+      apiRequest<void>(`/notifications/${id}/read`, {
+        method: "PATCH",
       }),
-
-    addAttachment: (taskId: string, file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      
-      return fetch(`${API_BASE_URL}/tasks/${taskId}/attachments`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-        body: formData,
-      }).then(res => res.json());
-    },
+    delete: (id: string) =>
+      apiRequest<void>(`/notifications/${id}`, {
+        method: "DELETE",
+      }),
   },
 
-  // Dashboard endpoints
-  dashboard: {
-    stats: () => apiRequest<any>("/dashboard/stats"),
-    activity: () => apiRequest<any[]>("/dashboard/activity"),
-  },
-
-  // Chat endpoints
-  chat: {
-    conversations: () => apiRequest<any[]>("/chat/conversations"),
+  // Message endpoints
+  messages: {
+    conversations: () => apiRequest<any[]>("/messages/conversations"),
     
-    messages: (conversationId: string) =>
-      apiRequest<any[]>(`/chat/conversations/${conversationId}/messages`),
+    getConversation: (otherUserId: string) =>
+      apiRequest<any[]>(`/messages/conversations/${otherUserId}`),
 
-    sendMessage: (conversationId: string, content: string) =>
-      apiRequest<any>(`/chat/conversations/${conversationId}/messages`, {
+    send: (recipientId: string, content: string) =>
+      apiRequest<any>("/messages", {
         method: "POST",
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ recipient_id: recipientId, content }),
       }),
 
-    createConversation: (participantIds: string[]) =>
-      apiRequest<any>("/chat/conversations", {
-        method: "POST",
-        body: JSON.stringify({ participantIds }),
+    markAsRead: (messageId: string) =>
+      apiRequest<void>(`/messages/${messageId}/read`, {
+        method: "PUT",
       }),
   },
 };
