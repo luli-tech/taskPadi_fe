@@ -21,7 +21,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     checkAuth();
@@ -44,14 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token, user: userData } = await api.auth.login(email, password);
     localStorage.setItem("authToken", token);
     setUser(userData);
-    navigate("/dashboard");
+    // Navigation will be handled by the component
   };
 
   const signup = async (email: string, password: string, name: string) => {
     const { token, user: userData } = await api.auth.signup(email, password, name);
     localStorage.setItem("authToken", token);
     setUser(userData);
-    navigate("/dashboard");
+    // Navigation will be handled by the component
   };
 
   const logout = async () => {
@@ -62,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem("authToken");
     setUser(null);
-    navigate("/auth");
+    // Navigation will be handled by the component
   };
 
   return (

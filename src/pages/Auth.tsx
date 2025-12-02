@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +10,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, Rocket } from "lucide-react";
 
 export default function Auth() {
-  const { login, signup } = useAuth();
+  const { login, signup, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -21,6 +30,9 @@ export default function Auth() {
         formData.get("email") as string,
         formData.get("password") as string
       );
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -36,6 +48,9 @@ export default function Auth() {
         formData.get("password") as string,
         formData.get("name") as string
       );
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Signup error:", error);
     } finally {
       setIsLoading(false);
     }
