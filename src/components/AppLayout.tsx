@@ -54,13 +54,21 @@ export function AppLayout() {
         } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transition-transform duration-200`}
       >
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-border">
+          <div className="p-6 border-b border-border flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <Rocket className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold">TaskFlow</span>
             </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <X className="w-5 h-5" />
+            </Button>
           </div>
 
           <nav className="flex-1 p-4 space-y-2">
