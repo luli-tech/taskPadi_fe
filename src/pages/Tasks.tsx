@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +9,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  useGetTasksQuery,
+  useCreateTaskMutation,
+  useUpdateTaskMutation,
+  useUpdateTaskStatusMutation,
+  useDeleteTaskMutation,
+  Task,
+  TaskStatus,
+  TaskPriority,
+} from "@/store/api/tasksApi";
+import { toast } from "sonner";
 import { 
   Plus, 
   Pencil, 
@@ -23,22 +32,6 @@ import {
   AlertCircle,
   Archive
 } from "lucide-react";
-import { toast } from "sonner";
-
-type TaskStatus = "Pending" | "InProgress" | "Completed" | "Archived";
-type TaskPriority = "Low" | "Medium" | "High" | "Urgent";
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: TaskStatus;
-  priority: TaskPriority;
-  due_date?: string;
-  reminder_time?: string;
-  created_at: string;
-  updated_at: string;
-}
 
 const priorityColors = {
   Low: "bg-muted text-muted-foreground",
@@ -55,96 +48,76 @@ const statusIcons = {
 };
 
 export default function Tasks() {
-  const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [filters, setFilters] = useState<{
-    status?: TaskStatus;
-    priority?: TaskPriority;
-  }>({});
+  const [filters, setFilters] = useState<{ status?: TaskStatus; priority?: TaskPriority }>({});
 
-  // Fetch tasks
-  const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks", filters],
-    queryFn: () => api.tasks.list(filters),
-  });
+  const { data: tasks = [], isLoading } = useGetTasksQuery(filters);
+  const [createTask, { isLoading: isCreating }] = useCreateTaskMutation();
+  const [updateTask, { isLoading: isUpdating }] = useUpdateTaskMutation();
+  const [updateTaskStatus] = useUpdateTaskStatusMutation();
+  const [deleteTask] = useDeleteTaskMutation();
 
-  // Create task mutation
-  const createMutation = useMutation({
-    mutationFn: api.tasks.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      setIsCreateOpen(false);
-      toast.success("Task created successfully");
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to create task");
-    },
-  });
-
-  // Update task mutation
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.tasks.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      setEditingTask(null);
-      toast.success("Task updated successfully");
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to update task");
-    },
-  });
-
-  // Update status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: TaskStatus }) =>
-      api.tasks.updateStatus(id, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Task status updated");
-    },
-  });
-
-  // Delete task mutation
-  const deleteMutation = useMutation({
-    mutationFn: api.tasks.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Task deleted successfully");
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to delete task");
-    },
-  });
-
-  const handleCreateTask = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateTask = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
-    createMutation.mutate({
-      title: formData.get("title") as string,
-      description: formData.get("description") as string,
-      priority: formData.get("priority") as TaskPriority,
-      due_date: formData.get("due_date") ? new Date(formData.get("due_date") as string).toISOString() : undefined,
-      reminder_time: formData.get("reminder_time") ? new Date(formData.get("reminder_time") as string).toISOString() : undefined,
-    });
+    try {
+      await createTask({
+        title: formData.get("title") as string,
+        description: formData.get("description") as string || undefined,
+        priority: formData.get("priority") as TaskPriority,
+        due_date: formData.get("due_date") ? new Date(formData.get("due_date") as string).toISOString() : undefined,
+        reminder_time: formData.get("reminder_time") ? new Date(formData.get("reminder_time") as string).toISOString() : undefined,
+      }).unwrap();
+      setIsCreateOpen(false);
+      toast.success("Task created successfully");
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to create task");
+    }
   };
 
-  const handleUpdateTask = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdateTask = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingTask) return;
 
     const formData = new FormData(e.currentTarget);
-    updateMutation.mutate({
-      id: editingTask.id,
-      data: {
-        title: formData.get("title") as string,
-        description: formData.get("description") as string,
-        priority: formData.get("priority") as TaskPriority,
-        due_date: formData.get("due_date") ? new Date(formData.get("due_date") as string).toISOString() : undefined,
-        reminder_time: formData.get("reminder_time") ? new Date(formData.get("reminder_time") as string).toISOString() : undefined,
-      },
-    });
+    try {
+      await updateTask({
+        id: editingTask.id,
+        data: {
+          title: formData.get("title") as string,
+          description: formData.get("description") as string || undefined,
+          priority: formData.get("priority") as TaskPriority,
+          due_date: formData.get("due_date") ? new Date(formData.get("due_date") as string).toISOString() : undefined,
+          reminder_time: formData.get("reminder_time") ? new Date(formData.get("reminder_time") as string).toISOString() : undefined,
+        },
+      }).unwrap();
+      setEditingTask(null);
+      toast.success("Task updated successfully");
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to update task");
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: TaskStatus) => {
+    try {
+      await updateTaskStatus({ id, status }).unwrap();
+      toast.success("Task status updated");
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this task?")) {
+      try {
+        await deleteTask(id).unwrap();
+        toast.success("Task deleted successfully");
+      } catch {
+        toast.error("Failed to delete task");
+      }
+    }
   };
 
   const TaskCard = ({ task }: { task: Task }) => {
@@ -193,9 +166,7 @@ export default function Tasks() {
             <div className="flex items-center gap-2">
               <Select
                 value={task.status}
-                onValueChange={(status: TaskStatus) =>
-                  updateStatusMutation.mutate({ id: task.id, status })
-                }
+                onValueChange={(status: TaskStatus) => handleStatusChange(task.id, status)}
               >
                 <SelectTrigger className="w-40">
                   <SelectValue />
@@ -209,22 +180,10 @@ export default function Tasks() {
               </Select>
 
               <div className="ml-auto flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditingTask(task)}
-                >
+                <Button variant="ghost" size="icon" onClick={() => setEditingTask(task)}>
                   <Pencil className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this task?")) {
-                      deleteMutation.mutate(task.id);
-                    }
-                  }}
-                >
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(task.id)}>
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
@@ -235,36 +194,16 @@ export default function Tasks() {
     );
   };
 
-  const TaskForm = ({
-    task,
-    onSubmit,
-    isLoading,
-  }: {
-    task?: Task | null;
-    onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
-    isLoading: boolean;
-  }) => (
+  const TaskForm = ({ task, onSubmit, isLoading }: { task?: Task | null; onSubmit: (e: React.FormEvent<HTMLFormElement>) => void; isLoading: boolean }) => (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="title">Title *</Label>
-        <Input
-          id="title"
-          name="title"
-          defaultValue={task?.title}
-          required
-          placeholder="Enter task title"
-        />
+        <Input id="title" name="title" defaultValue={task?.title} required placeholder="Enter task title" />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          name="description"
-          defaultValue={task?.description}
-          placeholder="Enter task description"
-          rows={3}
-        />
+        <Textarea id="description" name="description" defaultValue={task?.description} placeholder="Enter task description" rows={3} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -289,11 +228,7 @@ export default function Tasks() {
             id="due_date"
             name="due_date"
             type="datetime-local"
-            defaultValue={
-              task?.due_date
-                ? new Date(task.due_date).toISOString().slice(0, 16)
-                : ""
-            }
+            defaultValue={task?.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : ""}
           />
         </div>
       </div>
@@ -304,23 +239,12 @@ export default function Tasks() {
           id="reminder_time"
           name="reminder_time"
           type="datetime-local"
-          defaultValue={
-            task?.reminder_time
-              ? new Date(task.reminder_time).toISOString().slice(0, 16)
-              : ""
-          }
+          defaultValue={task?.reminder_time ? new Date(task.reminder_time).toISOString().slice(0, 16) : ""}
         />
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setIsCreateOpen(false);
-            setEditingTask(null);
-          }}
-        >
+        <Button type="button" variant="outline" onClick={() => { setIsCreateOpen(false); setEditingTask(null); }}>
           Cancel
         </Button>
         <Button type="submit" disabled={isLoading}>
@@ -331,21 +255,18 @@ export default function Tasks() {
   );
 
   const groupedTasks = {
-    Pending: tasks.filter((t: Task) => t.status === "Pending"),
-    InProgress: tasks.filter((t: Task) => t.status === "InProgress"),
-    Completed: tasks.filter((t: Task) => t.status === "Completed"),
-    Archived: tasks.filter((t: Task) => t.status === "Archived"),
+    Pending: tasks.filter((t) => t.status === "Pending"),
+    InProgress: tasks.filter((t) => t.status === "InProgress"),
+    Completed: tasks.filter((t) => t.status === "Completed"),
+    Archived: tasks.filter((t) => t.status === "Archived"),
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold mb-2">Tasks</h1>
-          <p className="text-muted-foreground">
-            Manage and track your tasks efficiently
-          </p>
+          <p className="text-muted-foreground">Manage and track your tasks efficiently</p>
         </div>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -358,16 +279,13 @@ export default function Tasks() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Task</DialogTitle>
-              <DialogDescription>
-                Fill in the details to create a new task
-              </DialogDescription>
+              <DialogDescription>Fill in the details to create a new task</DialogDescription>
             </DialogHeader>
-            <TaskForm onSubmit={handleCreateTask} isLoading={createMutation.isPending} />
+            <TaskForm onSubmit={handleCreateTask} isLoading={isCreating} />
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Filters */}
       <Card className="shadow-custom-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -381,9 +299,7 @@ export default function Tasks() {
               <Label>Priority</Label>
               <Select
                 value={filters.priority || ""}
-                onValueChange={(value) =>
-                  setFilters({ ...filters, priority: value as TaskPriority || undefined })
-                }
+                onValueChange={(value) => setFilters({ ...filters, priority: value as TaskPriority || undefined })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All priorities" />
@@ -402,9 +318,7 @@ export default function Tasks() {
               <Label>Status</Label>
               <Select
                 value={filters.status || ""}
-                onValueChange={(value) =>
-                  setFilters({ ...filters, status: value as TaskStatus || undefined })
-                }
+                onValueChange={(value) => setFilters({ ...filters, status: value as TaskStatus || undefined })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All statuses" />
@@ -422,15 +336,12 @@ export default function Tasks() {
         </CardContent>
       </Card>
 
-      {/* Tasks by Status */}
       <Tabs defaultValue="Pending" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
           {Object.entries(groupedTasks).map(([status, statusTasks]) => (
             <TabsTrigger key={status} value={status} className="relative">
               {status.replace(/([A-Z])/g, " $1").trim()}
-              <Badge variant="secondary" className="ml-2">
-                {statusTasks.length}
-              </Badge>
+              <Badge variant="secondary" className="ml-2">{statusTasks.length}</Badge>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -453,7 +364,7 @@ export default function Tasks() {
             ) : (
               <AnimatePresence>
                 <div className="grid gap-4">
-                  {statusTasks.map((task: Task) => (
+                  {statusTasks.map((task) => (
                     <TaskCard key={task.id} task={task} />
                   ))}
                 </div>
@@ -463,20 +374,13 @@ export default function Tasks() {
         ))}
       </Tabs>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Task</DialogTitle>
-            <DialogDescription>
-              Update the task details
-            </DialogDescription>
+            <DialogDescription>Update the task details</DialogDescription>
           </DialogHeader>
-          <TaskForm
-            task={editingTask}
-            onSubmit={handleUpdateTask}
-            isLoading={updateMutation.isPending}
-          />
+          <TaskForm task={editingTask} onSubmit={handleUpdateTask} isLoading={isUpdating} />
         </DialogContent>
       </Dialog>
     </div>

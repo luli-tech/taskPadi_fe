@@ -1,6 +1,8 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useLogoutMutation } from "@/store/api/authApi";
+import { logout } from "@/store/slices/authSlice";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -16,13 +18,23 @@ import {
 import { useState } from "react";
 
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+  const [logoutApi] = useLogoutMutation();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
-    await logout();
+    const refreshToken = localStorage.getItem("refreshToken");
+    try {
+      if (refreshToken) {
+        await logoutApi({ refresh_token: refreshToken }).unwrap();
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    dispatch(logout());
     navigate("/auth");
   };
 
@@ -34,7 +46,6 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Sidebar */}
       <motion.aside
         initial={{ x: -300 }}
         animate={{ x: 0 }}
@@ -43,7 +54,6 @@ export function AppLayout() {
         } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transition-transform duration-200`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
           <div className="p-6 border-b border-border">
             <Link to="/dashboard" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
@@ -53,7 +63,6 @@ export function AppLayout() {
             </Link>
           </div>
 
-          {/* Navigation */}
           <nav className="flex-1 p-4 space-y-2">
             {navigation.map((item) => (
               <NavLink
@@ -68,7 +77,6 @@ export function AppLayout() {
             ))}
           </nav>
 
-          {/* User section */}
           <div className="p-4 border-t border-border">
             <div className="flex items-center gap-3 mb-3 px-4 py-2">
               <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
@@ -91,7 +99,6 @@ export function AppLayout() {
         </div>
       </motion.aside>
 
-      {/* Mobile menu overlay */}
       {mobileMenuOpen && (
         <div
           className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
@@ -99,9 +106,7 @@ export function AppLayout() {
         />
       )}
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
           <div className="flex items-center justify-between px-6 py-4">
             <Button
@@ -110,11 +115,7 @@ export function AppLayout() {
               className="lg:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              {mobileMenuOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </Button>
             
             <div className="hidden lg:block">
@@ -123,13 +124,10 @@ export function AppLayout() {
               </h2>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Add global actions here */}
-            </div>
+            <div className="flex items-center gap-2"></div>
           </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 p-6">
           <div className="max-w-7xl mx-auto">
             <Outlet />

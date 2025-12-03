@@ -6,64 +6,71 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useLoginMutation, useSignupMutation } from "@/store/api/authApi";
+import { setCredentials } from "@/store/slices/authSlice";
+import { toast } from "sonner";
 import { CheckCircle2, Rocket } from "lucide-react";
-export default function Auth() {
-  const {
-    login,
-    signup,
-    user
-  } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
-  // Redirect if already logged in
+export default function Auth() {
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const [login, { isLoading: isLoginLoading }] = useLoginMutation();
+  const [signup, { isLoading: isSignupLoading }] = useSignupMutation();
+
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated) {
       navigate("/dashboard");
     }
-  }, [user, navigate]);
+  }, [isAuthenticated, navigate]);
+
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
+    const formData = new FormData(e.currentTarget);
     try {
-      const formData = new FormData(e.currentTarget);
-      await login(formData.get("email") as string, formData.get("password") as string);
+      const result = await login({
+        email: formData.get("email") as string,
+        password: formData.get("password") as string,
+      }).unwrap();
+      dispatch(setCredentials(result));
+      toast.success("Welcome back!");
       navigate("/dashboard");
-    } catch (error) {
-      console.error("Login error:", error);
-    } finally {
-      setIsLoading(false);
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Login failed");
     }
   };
+
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
+    const formData = new FormData(e.currentTarget);
     try {
-      const formData = new FormData(e.currentTarget);
-      await signup(formData.get("email") as string, formData.get("password") as string, formData.get("username") as string);
+      const result = await signup({
+        email: formData.get("email") as string,
+        password: formData.get("password") as string,
+        username: formData.get("username") as string,
+      }).unwrap();
+      dispatch(setCredentials(result));
+      toast.success("Account created successfully!");
       navigate("/dashboard");
-    } catch (error) {
-      console.error("Signup error:", error);
-    } finally {
-      setIsLoading(false);
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Signup failed");
     }
   };
-  return <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background gradient */}
+
+  const isLoading = isLoginLoading || isSignupLoading;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 gradient-primary opacity-10"></div>
       
       <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-12 items-center relative z-10">
-        {/* Left side - Branding */}
-        <motion.div initial={{
-        opacity: 0,
-        x: -20
-      }} animate={{
-        opacity: 1,
-        x: 0
-      }} transition={{
-        duration: 0.6
-      }} className="hidden lg:block space-y-6">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+          className="hidden lg:block space-y-6"
+        >
           <div className="flex items-center gap-3 mb-8">
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
               <Rocket className="w-6 h-6 text-white" />
@@ -85,39 +92,32 @@ export default function Auth() {
           </p>
 
           <div className="space-y-4 pt-6">
-            {["Real-time collaboration", "AI-powered insights", "Smart task management", "Team chat included"].map((feature, i) => <motion.div key={feature} initial={{
-            opacity: 0,
-            x: -20
-          }} animate={{
-            opacity: 1,
-            x: 0
-          }} transition={{
-            delay: 0.2 + i * 0.1
-          }} className="flex items-center gap-3">
+            {["Real-time collaboration", "AI-powered insights", "Smart task management", "Team chat included"].map((feature, i) => (
+              <motion.div
+                key={feature}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 + i * 0.1 }}
+                className="flex items-center gap-3"
+              >
                 <div className="w-6 h-6 rounded-full bg-success/10 flex items-center justify-center">
                   <CheckCircle2 className="w-4 h-4 text-success" />
                 </div>
                 <span className="text-foreground">{feature}</span>
-              </motion.div>)}
+              </motion.div>
+            ))}
           </div>
         </motion.div>
 
-        {/* Right side - Auth forms */}
-        <motion.div initial={{
-        opacity: 0,
-        y: 20
-      }} animate={{
-        opacity: 1,
-        y: 0
-      }} transition={{
-        duration: 0.6
-      }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
           <Card className="shadow-custom-xl border-border/50 border-dotted opacity-100">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl">Welcome</CardTitle>
-              <CardDescription>
-                Sign in to your account or create a new one
-              </CardDescription>
+              <CardDescription>Sign in to your account or create a new one</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="login" className="space-y-4">
@@ -137,7 +137,7 @@ export default function Auth() {
                       <Input id="login-password" name="password" type="password" required />
                     </div>
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? "Signing in..." : "Sign In"}
+                      {isLoginLoading ? "Signing in..." : "Sign In"}
                     </Button>
                   </form>
                 </TabsContent>
@@ -157,7 +157,7 @@ export default function Auth() {
                       <Input id="signup-password" name="password" type="password" required />
                     </div>
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? "Creating account..." : "Create Account"}
+                      {isSignupLoading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
                 </TabsContent>
@@ -166,5 +166,6 @@ export default function Auth() {
           </Card>
         </motion.div>
       </div>
-    </div>;
+    </div>
+  );
 }

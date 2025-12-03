@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { useGetTasksQuery } from "@/store/api/tasksApi";
+import { useGetNotificationsQuery } from "@/store/api/notificationsApi";
 import { 
   CheckCircle2, 
   Clock, 
@@ -14,27 +14,18 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  const { data: tasks = [], isLoading: statsLoading } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => api.tasks.list(),
-  });
+  const { data: tasks = [], isLoading: tasksLoading } = useGetTasksQuery();
+  const { data: notifications = [], isLoading: notificationsLoading } = useGetNotificationsQuery();
 
   const stats = {
     totalTasks: tasks.length,
-    completedTasks: tasks.filter((t: any) => t.status === "Completed").length,
-    inProgressTasks: tasks.filter((t: any) => t.status === "InProgress").length,
+    completedTasks: tasks.filter((t) => t.status === "Completed").length,
+    inProgressTasks: tasks.filter((t) => t.status === "InProgress").length,
     teamMembers: 1,
-    upcomingDeadlines: tasks
-      .filter((t: any) => t.due_date && new Date(t.due_date) > new Date())
-      .slice(0, 5),
+    upcomingDeadlines: tasks.filter((t) => t.due_date && new Date(t.due_date) > new Date()).slice(0, 5),
   };
 
-  const { data: notifications = [], isLoading: activityLoading } = useQuery({
-    queryKey: ["notifications"],
-    queryFn: () => api.notifications.list(),
-  });
-
-  const activity = notifications.slice(0, 5).map((n: any) => ({
+  const activity = notifications.slice(0, 5).map((n) => ({
     id: n.id,
     action: n.message,
     timestamp: n.created_at,
@@ -42,47 +33,19 @@ export default function Dashboard() {
   }));
 
   const statCards = [
-    {
-      title: "Total Tasks",
-      value: stats?.totalTasks || 0,
-      icon: ListTodo,
-      gradient: "from-primary to-secondary",
-      change: "+12%"
-    },
-    {
-      title: "Completed",
-      value: stats?.completedTasks || 0,
-      icon: CheckCircle2,
-      gradient: "from-success to-emerald-400",
-      change: "+8%"
-    },
-    {
-      title: "In Progress",
-      value: stats?.inProgressTasks || 0,
-      icon: Clock,
-      gradient: "from-warning to-orange-400",
-      change: "+5%"
-    },
-    {
-      title: "Team Members",
-      value: stats?.teamMembers || 0,
-      icon: Users,
-      gradient: "from-accent to-purple-400",
-      change: "+2"
-    },
+    { title: "Total Tasks", value: stats.totalTasks, icon: ListTodo, gradient: "from-primary to-secondary", change: "+12%" },
+    { title: "Completed", value: stats.completedTasks, icon: CheckCircle2, gradient: "from-success to-emerald-400", change: "+8%" },
+    { title: "In Progress", value: stats.inProgressTasks, icon: Clock, gradient: "from-warning to-orange-400", change: "+5%" },
+    { title: "Team Members", value: stats.teamMembers, icon: Users, gradient: "from-accent to-purple-400", change: "+2" },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back! Here's what's happening with your tasks.
-        </p>
+        <p className="text-muted-foreground">Welcome back! Here's what's happening with your tasks.</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => (
           <motion.div
@@ -94,15 +57,13 @@ export default function Dashboard() {
             <Card className="relative overflow-hidden shadow-custom-md hover:shadow-custom-lg transition-shadow">
               <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-5`}></div>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
                 <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${stat.gradient} flex items-center justify-center`}>
                   <stat.icon className="w-5 h-5 text-white" />
                 </div>
               </CardHeader>
               <CardContent>
-                {statsLoading ? (
+                {tasksLoading ? (
                   <Skeleton className="h-8 w-24" />
                 ) : (
                   <>
@@ -118,14 +79,8 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Activity & Quick Actions */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Recent Activity */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.4 }}
-        >
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
           <Card className="shadow-custom-md">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -134,7 +89,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {activityLoading ? (
+              {notificationsLoading ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="flex items-center gap-4">
@@ -146,9 +101,9 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              ) : activity?.length > 0 ? (
+              ) : activity.length > 0 ? (
                 <div className="space-y-4">
-                  {activity.slice(0, 5).map((item: any, i: number) => (
+                  {activity.map((item, i) => (
                     <motion.div
                       key={item.id}
                       initial={{ opacity: 0, x: -20 }}
@@ -157,15 +112,11 @@ export default function Dashboard() {
                       className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors"
                     >
                       <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
-                        <span className="text-white font-semibold">
-                          {item.user?.name?.charAt(0) || "U"}
-                        </span>
+                        <span className="text-white font-semibold">{item.user?.name?.charAt(0) || "U"}</span>
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">{item.action}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(item.timestamp).toLocaleString()}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{new Date(item.timestamp).toLocaleString()}</p>
                       </div>
                     </motion.div>
                   ))}
@@ -180,12 +131,7 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* Upcoming Deadlines */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.5 }}
-        >
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
           <Card className="shadow-custom-md">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -194,15 +140,13 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {statsLoading ? (
+              {tasksLoading ? (
                 <div className="space-y-4">
-                  {[1, 2, 3].map(i => (
-                    <Skeleton key={i} className="h-16 w-full" />
-                  ))}
+                  {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
                 </div>
-              ) : stats?.upcomingDeadlines?.length > 0 ? (
+              ) : stats.upcomingDeadlines.length > 0 ? (
                 <div className="space-y-3">
-                  {stats.upcomingDeadlines.slice(0, 5).map((task: any, i: number) => (
+                  {stats.upcomingDeadlines.map((task, i) => (
                     <motion.div
                       key={task.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -213,17 +157,17 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between mb-1">
                         <h4 className="font-medium">{task.title}</h4>
                         <span className={`text-xs px-2 py-1 rounded-full ${
-                          task.priority === 'high' 
-                            ? 'bg-destructive/10 text-destructive' 
-                            : task.priority === 'medium'
-                            ? 'bg-warning/10 text-warning'
-                            : 'bg-muted text-muted-foreground'
+                          task.priority === "High" || task.priority === "Urgent"
+                            ? "bg-destructive/10 text-destructive"
+                            : task.priority === "Medium"
+                            ? "bg-warning/10 text-warning"
+                            : "bg-muted text-muted-foreground"
                         }`}>
                           {task.priority}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Due: {new Date(task.dueDate).toLocaleDateString()}
+                        Due: {task.due_date ? new Date(task.due_date).toLocaleDateString() : "No date"}
                       </p>
                     </motion.div>
                   ))}
