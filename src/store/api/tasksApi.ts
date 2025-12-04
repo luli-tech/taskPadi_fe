@@ -89,7 +89,22 @@ export const tasksApi = baseApi.injectEndpoints({
         url: `/tasks/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "Tasks", id: "LIST" }],
+      invalidatesTags: (_, __, id) => [{ type: "Tasks", id }, { type: "Tasks", id: "LIST" }],
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        // Optimistic update - remove task from cache immediately
+        const patchResult = dispatch(
+          tasksApi.util.updateQueryData('getTasks', undefined, (draft) => {
+            const index = draft.findIndex((task) => task.id === id);
+            if (index !== -1) draft.splice(index, 1);
+          })
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          // Revert on error
+          patchResult.undo();
+        }
+      },
     }),
   }),
 });
