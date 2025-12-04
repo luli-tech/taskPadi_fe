@@ -297,40 +297,40 @@ export default function Tasks() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Priority</Label>
-              <Select
-                value={filters.priority || ""}
-                onValueChange={(value) => setFilters({ ...filters, priority: value as TaskPriority || undefined })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All priorities" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All priorities</SelectItem>
-                  <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select
+              value={filters.priority || "all"}
+              onValueChange={(value) => setFilters({ ...filters, priority: value === "all" ? undefined : value as TaskPriority })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All priorities</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Urgent">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
 
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select
-                value={filters.status || ""}
-                onValueChange={(value) => setFilters({ ...filters, status: value as TaskStatus || undefined })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="InProgress">In Progress</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select
+              value={filters.status || "all"}
+              onValueChange={(value) => setFilters({ ...filters, status: value === "all" ? undefined : value as TaskStatus })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="InProgress">In Progress</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
+                <SelectItem value="Archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
         </CardContent>
