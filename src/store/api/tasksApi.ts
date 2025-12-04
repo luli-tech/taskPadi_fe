@@ -45,6 +45,12 @@ export const tasksApi = baseApi.injectEndpoints({
         const params = filters ? new URLSearchParams(filters as Record<string, string>).toString() : "";
         return `/tasks${params ? `?${params}` : ""}`;
       },
+      transformResponse: (response: Task[] | { tasks: Task[] } | { data: Task[] }) => {
+        if (Array.isArray(response)) return response;
+        if ('tasks' in response) return response.tasks;
+        if ('data' in response) return response.data;
+        return [];
+      },
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: "Tasks" as const, id })), { type: "Tasks", id: "LIST" }]
