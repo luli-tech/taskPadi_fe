@@ -55,13 +55,11 @@ export function AppLayout() {
           <div className="p-6 border-b border-border flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-                {/* <Rocket className="w-5 h-5 text-white" /> */}
-              <img 
-          src="/favicon.ico" 
-          alt="TaskPadi logo" 
-          className="w-7 h-7 object-contain"
-        />
-                <
+                <img 
+                  src="/favicon.ico" 
+                  alt="TaskPadi logo" 
+                  className="w-7 h-7 object-contain"
+                />
               </div>
               <span className="text-xl font-bold">TaskPadi</span>
             </Link>
