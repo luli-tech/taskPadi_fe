@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGetTasksQuery } from "@/store/api/tasksApi";
 import { useGetNotificationsQuery } from "@/store/api/notificationsApi";
+import { AISummary } from "@/components/AISummary";
 import { 
   CheckCircle2, 
   Clock, 
@@ -182,6 +183,10 @@ export default function Dashboard() {
           </Card>
         </motion.div>
       </div>
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+        <AISummary />
+      </motion.div>
     </div>
   );
 }

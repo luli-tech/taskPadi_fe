@@ -9,6 +9,9 @@ import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
+import Chat from "./pages/Chat";
+import Settings from "./pages/Settings";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -30,7 +33,9 @@ const App = () => (
           >
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="tasks" element={<Tasks />} />
-            <Route path="chat" element={<div className="text-center py-20 text-muted-foreground">Chat page coming soon...</div>} />
+            <Route path="chat" element={<Chat />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="admin" element={<AdminDashboard />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

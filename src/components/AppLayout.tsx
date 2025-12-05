@@ -10,10 +10,11 @@ import {
   CheckSquare,
   MessageSquare,
   LogOut,
-  Rocket,
   User,
   Menu,
-  X
+  X,
+  Settings,
+  Shield
 } from "lucide-react";
 import { useState } from "react";
 
@@ -42,6 +43,11 @@ export function AppLayout() {
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Tasks", href: "/tasks", icon: CheckSquare },
     { name: "Chat", href: "/chat", icon: MessageSquare },
+    { name: "Settings", href: "/settings", icon: Settings },
+  ];
+
+  const adminNav = [
+    { name: "Admin", href: "/admin", icon: Shield },
   ];
 
   return (
@@ -84,6 +90,21 @@ export function AppLayout() {
                 <span className="font-medium">{item.name}</span>
               </NavLink>
             ))}
+            
+            <div className="pt-4 mt-4 border-t border-border">
+              <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Admin</p>
+              {adminNav.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  activeClassName="bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="font-medium">{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
           </nav>
 
           <div className="p-4 border-t border-border">
