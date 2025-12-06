@@ -59,7 +59,7 @@ export function AppLayout() {
       >
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border flex items-center justify-between">
-            <Link to="/dashboard" className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <img 
                   src="/favicon.ico" 

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   CheckSquare,
@@ -13,12 +13,44 @@ import {
   Clock,
   Users,
   Sparkles,
-  ArrowRight,
+  LogIn,
+  LogOut,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { useGetTasksQuery } from "@/store/api/tasksApi";
+import { useLogoutMutation } from "@/store/api/authApi";
+import { logout } from "@/store/slices/authSlice";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { data: tasks = [] } = useGetTasksQuery(undefined, { skip: !isAuthenticated });
+  const [logoutApi] = useLogoutMutation();
+
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem("refreshToken");
+    try {
+      if (refreshToken) {
+        await logoutApi({ refresh_token: refreshToken }).unwrap();
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    dispatch(logout());
+  };
+
+  const handleProtectedNavigation = (href: string) => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+    } else {
+      navigate(href);
+    }
+  };
+
   const quickActions = [
     { icon: Plus, label: "New Task", href: "/tasks", color: "bg-primary" },
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", color: "bg-primary/90" },
@@ -33,13 +65,17 @@ const Index = () => {
     { icon: Shield, label: "Admin", href: "/admin", badge: null },
     { icon: Sparkles, label: "AI Summary", href: "/dashboard", badge: "AI" },
     { icon: Users, label: "Team", href: "/admin", badge: null },
-    { icon: Bell, label: "Alerts", href: "/dashboard", badge: "3" },
+    { icon: Bell, label: "Alerts", href: "/dashboard", badge: isAuthenticated ? String(tasks.filter(t => t.status === 'Pending').length || '') : null },
   ];
 
+  // Calculate real stats from tasks
+  const activeTasks = tasks.filter(t => t.status === 'Pending' || t.status === 'InProgress').length;
+  const completedTasks = tasks.filter(t => t.status === 'Completed').length;
+
   const stats = [
-    { label: "Active Tasks", value: "12", icon: Clock, trend: "+3" },
-    { label: "Completed", value: "48", icon: CheckSquare, trend: "+8" },
-    { label: "Team Members", value: "6", icon: Users, trend: null },
+    { label: "Active Tasks", value: isAuthenticated ? String(activeTasks) : "--", icon: Clock, trend: isAuthenticated && activeTasks > 0 ? `+${activeTasks}` : null },
+    { label: "Completed", value: isAuthenticated ? String(completedTasks) : "--", icon: CheckSquare, trend: isAuthenticated && completedTasks > 0 ? `+${completedTasks}` : null },
+    { label: "Total Tasks", value: isAuthenticated ? String(tasks.length) : "--", icon: Users, trend: null },
   ];
 
   return (
@@ -52,14 +88,36 @@ const Index = () => {
               <CheckSquare className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-white/80 text-sm">Welcome back,</p>
-              <h1 className="text-white text-xl font-bold">TaskFlow Pro</h1>
+              <p className="text-white/80 text-sm">
+                {isAuthenticated ? "Welcome back," : "Welcome to"}
+              </p>
+              <h1 className="text-white text-xl font-bold">
+                {isAuthenticated ? user?.name || "TaskFlow Pro" : "TaskFlow Pro"}
+              </h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <Bell className="w-5 h-5 text-white" />
-            </button>
+            {isAuthenticated ? (
+              <>
+                <button className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-white" />
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+                >
+                  <LogOut className="w-5 h-5 text-white" />
+                </button>
+              </>
+            ) : (
+              <Link 
+                to="/auth" 
+                className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-white text-sm font-medium"
+              >
+                <LogIn className="w-4 h-4" />
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
 
@@ -77,12 +135,12 @@ const Index = () => {
                 </div>
                 <span className="text-foreground font-semibold">Task Overview</span>
               </div>
-              <Link
-                to="/tasks"
+              <button
+                onClick={() => handleProtectedNavigation("/tasks")}
                 className="text-primary text-sm font-medium flex items-center gap-1"
               >
                 View All <ChevronRight className="w-4 h-4" />
-              </Link>
+              </button>
             </div>
             <div className="grid grid-cols-3 gap-4">
               {stats.map((stat, index) => (
@@ -113,9 +171,9 @@ const Index = () => {
           <Card className="p-4 rounded-2xl shadow-custom-md">
             <div className="flex justify-around">
               {quickActions.map((action, index) => (
-                <Link
+                <button
                   key={index}
-                  to={action.href}
+                  onClick={() => handleProtectedNavigation(action.href)}
                   className="flex flex-col items-center gap-2 group"
                 >
                   <div
@@ -124,7 +182,7 @@ const Index = () => {
                     <action.icon className="w-6 h-6 text-primary-foreground" />
                   </div>
                   <span className="text-foreground text-xs font-medium">{action.label}</span>
-                </Link>
+                </button>
               ))}
             </div>
           </Card>
@@ -141,9 +199,9 @@ const Index = () => {
           <Card className="p-4 rounded-2xl shadow-custom-md">
             <div className="grid grid-cols-4 gap-4">
               {features.map((feature, index) => (
-                <Link
+                <button
                   key={index}
-                  to={feature.href}
+                  onClick={() => handleProtectedNavigation(feature.href)}
                   className="flex flex-col items-center gap-2 group relative"
                 >
                   <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center transition-all group-hover:bg-primary/20 group-hover:scale-105">
@@ -157,7 +215,7 @@ const Index = () => {
                   <span className="text-foreground text-xs font-medium text-center">
                     {feature.label}
                   </span>
-                </Link>
+                </button>
               ))}
             </div>
           </Card>
@@ -172,11 +230,15 @@ const Index = () => {
           transition={{ delay: 0.4 }}
         >
           <Card className="p-5 rounded-2xl shadow-custom-md bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-            <h3 className="font-bold text-foreground mb-3">Get Started Today</h3>
+            <h3 className="font-bold text-foreground mb-3">
+              {isAuthenticated ? "Your Productivity Hub" : "Get Started Today"}
+            </h3>
             <div className="flex items-center gap-4">
-              <Button size="sm" className="rounded-full">
-                Get Started
-              </Button>
+              {!isAuthenticated && (
+                <Button size="sm" className="rounded-full" onClick={() => navigate("/auth")}>
+                  Get Started
+                </Button>
+              )}
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Sparkles className="w-6 h-6 text-primary" />
@@ -208,9 +270,9 @@ const Index = () => {
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="font-semibold text-foreground text-sm">Quick Tip</h4>
-                  <Link to="/dashboard" className="text-primary text-xs font-medium">
+                  <button onClick={() => handleProtectedNavigation("/dashboard")} className="text-primary text-xs font-medium">
                     More <ChevronRight className="w-3 h-3 inline" />
-                  </Link>
+                  </button>
                 </div>
                 <p className="text-muted-foreground text-xs leading-relaxed">
                   Use keyboard shortcuts to quickly create and manage tasks. Press 'N' for new task, 'D' for dashboard.
@@ -230,23 +292,30 @@ const Index = () => {
             </div>
             <span className="text-xs font-medium">Home</span>
           </Link>
-          <Link to="/dashboard" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => handleProtectedNavigation("/dashboard")} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
             <LayoutDashboard className="w-6 h-6" />
             <span className="text-xs">Dashboard</span>
-          </Link>
-          <Link to="/tasks" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
+          </button>
+          <button onClick={() => handleProtectedNavigation("/tasks")} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
             <CheckSquare className="w-6 h-6" />
             <span className="text-xs">Tasks</span>
-          </Link>
-          <Link to="/chat" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors relative">
+          </button>
+          <button onClick={() => handleProtectedNavigation("/chat")} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors relative">
             <MessageSquare className="w-6 h-6" />
             <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full" />
             <span className="text-xs">Chat</span>
-          </Link>
-          <Link to="/settings" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
-            <Settings className="w-6 h-6" />
-            <span className="text-xs">Settings</span>
-          </Link>
+          </button>
+          {isAuthenticated ? (
+            <button onClick={() => handleProtectedNavigation("/settings")} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
+              <Settings className="w-6 h-6" />
+              <span className="text-xs">Settings</span>
+            </button>
+          ) : (
+            <Link to="/auth" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
+              <User className="w-6 h-6" />
+              <span className="text-xs">Sign In</span>
+            </Link>
+          )}
         </div>
       </nav>
     </div>

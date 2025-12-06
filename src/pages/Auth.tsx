@@ -25,7 +25,7 @@ export default function Auth() {
   const [signup, { isLoading: isSignupLoading }] = useSignupMutation();
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/dashboard");
+      navigate("/");
     }
   }, [isAuthenticated, navigate]);
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -38,7 +38,7 @@ export default function Auth() {
       }).unwrap();
       dispatch(setCredentials(result));
       toast.success("Welcome back!");
-      navigate("/dashboard");
+      navigate("/");
     } catch (error: any) {
       toast.error(error?.data?.message || "Login failed");
     }
@@ -54,7 +54,7 @@ export default function Auth() {
       }).unwrap();
       dispatch(setCredentials(result));
       toast.success("Account created successfully!");
-      navigate("/dashboard");
+      navigate("/");
     } catch (error: any) {
       toast.error(error?.data?.message || "Signup failed");
     }
