@@ -133,17 +133,17 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <header className="gradient-hero px-4 pt-12 pb-8">
-          <div className="flex items-center justify-between mb-6">
+        <header className="gradient-hero px-4 pt-8 pb-6">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                <CheckSquare className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <CheckSquare className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-white/80 text-sm">
+                <p className="text-white/80 text-xs">
                   {isAuthenticated ? "Welcome back," : "Welcome to"}
                 </p>
-                <h1 className="text-white text-xl font-bold">
+                <h1 className="text-white text-lg font-bold">
                   {isAuthenticated ? user?.name || "TaskFlow Pro" : "TaskFlow Pro"}
                 </h1>
               </div>
@@ -151,25 +151,65 @@ const Index = () => {
             <div className="flex items-center gap-2">
               {isAuthenticated ? (
                 <>
-                  <button className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                    <Bell className="w-5 h-5 text-white" />
+                  <button className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+                    <Bell className="w-4 h-4 text-white" />
                   </button>
                   <button 
                     onClick={handleLogout}
-                    className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+                    className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center"
                   >
-                    <LogOut className="w-5 h-5 text-white" />
+                    <LogOut className="w-4 h-4 text-white" />
                   </button>
                 </>
               ) : (
                 <Link 
                   to="/auth" 
-                  className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-white text-sm font-medium"
+                  className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-full text-white text-xs font-medium"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-3.5 h-3.5" />
                   Sign In
                 </Link>
               )}
+            </div>
+          </div>
+
+          {/* Mobile Carousel */}
+          <div className="relative overflow-hidden rounded-2xl mb-4">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentSlide}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.4 }}
+                className={`bg-gradient-to-r ${carouselSlides[currentSlide].gradient} p-5 text-white rounded-2xl`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                    {(() => {
+                      const Icon = carouselSlides[currentSlide].icon;
+                      return <Icon className="w-6 h-6" />;
+                    })()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-bold mb-1">{carouselSlides[currentSlide].title}</h2>
+                    <p className="text-xs text-white/90 leading-relaxed">{carouselSlides[currentSlide].description}</p>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Carousel Dots */}
+            <div className="flex justify-center gap-1.5 mt-3">
+              {carouselSlides.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentSlide(index)}
+                  className={`h-1.5 rounded-full transition-all ${
+                    index === currentSlide ? "bg-white w-4" : "bg-white/40 w-1.5"
+                  }`}
+                />
+              ))}
             </div>
           </div>
 
