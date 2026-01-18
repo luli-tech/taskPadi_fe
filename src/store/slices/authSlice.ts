@@ -4,35 +4,43 @@ interface User {
   id: string;
   email: string;
   name: string;
+  role?: string;
 }
 
 interface AuthState {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
 }
 
-const getInitialUser = (): User | null => {
+const getInitialUser = (): { user: User | null; isAdmin: boolean } => {
   const token = localStorage.getItem("authToken");
   if (token) {
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
       return {
-        id: payload.sub,
-        email: payload.email,
-        name: payload.username || payload.email,
+        user: {
+          id: payload.sub,
+          email: payload.email,
+          name: payload.username || payload.email,
+          role: payload.role,
+        },
+        isAdmin: payload.role === "admin",
       };
     } catch {
-      return null;
+      return { user: null, isAdmin: false };
     }
   }
-  return null;
+  return { user: null, isAdmin: false };
 };
 
+const initialData = getInitialUser();
 const initialState: AuthState = {
-  user: getInitialUser(),
+  user: initialData.user,
   isLoading: false,
   isAuthenticated: !!localStorage.getItem("authToken"),
+  isAdmin: initialData.isAdmin,
 };
 
 const authSlice = createSlice({
@@ -50,11 +58,14 @@ const authSlice = createSlice({
           id: payload.sub,
           email: payload.email,
           name: payload.username || payload.email,
+          role: payload.role,
         };
         state.isAuthenticated = true;
+        state.isAdmin = payload.role === "admin";
       } catch {
         state.user = null;
         state.isAuthenticated = false;
+        state.isAdmin = false;
       }
     },
     logout: (state) => {
@@ -62,6 +73,7 @@ const authSlice = createSlice({
       localStorage.removeItem("refreshToken");
       state.user = null;
       state.isAuthenticated = false;
+      state.isAdmin = false;
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;

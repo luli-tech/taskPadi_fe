@@ -5,10 +5,23 @@ const API_BASE_URL = "https://task-manager-84ag.onrender.com/api";
 
 const baseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
-  prepareHeaders: (headers) => {
-    const token = localStorage.getItem("authToken");
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
+  prepareHeaders: (headers, { endpoint }) => {
+    // Don't add auth header for auth endpoints
+    // RTK Query endpoint names are like "login", "signup", etc.
+    const endpointName = typeof endpoint === 'string' ? endpoint : '';
+    const isAuthEndpoint = 
+      endpointName.includes('login') ||
+      endpointName.includes('signup') ||
+      endpointName.includes('register') ||
+      endpointName.includes('google') ||
+      endpointName.includes('refresh') ||
+      endpointName.includes('logout');
+    
+    if (!isAuthEndpoint) {
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
     }
     headers.set("Content-Type", "application/json");
     return headers;
@@ -22,7 +35,16 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 ) => {
   let result = await baseQuery(args, api, extraOptions);
 
-  if (result.error && result.error.status === 401) {
+  // Don't trigger reauth for auth endpoints or if the request URL is an auth endpoint
+  const url = typeof args === 'string' ? args : args.url;
+  const isAuthEndpoint = url && (
+    url.includes('/auth/login') ||
+    url.includes('/auth/register') ||
+    url.includes('/auth/logout') ||
+    url.includes('/auth/google')
+  );
+
+  if (result.error && result.error.status === 401 && !isAuthEndpoint) {
     const refreshToken = localStorage.getItem("refreshToken");
     
     if (refreshToken) {

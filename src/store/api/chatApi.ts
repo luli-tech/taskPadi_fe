@@ -2,28 +2,49 @@ import { baseApi } from "./baseApi";
 
 export interface Message {
   id: string;
-  conversation_id: string;
   sender_id: string;
-  sender_name?: string;
+  receiver_id: string;
   content: string;
+  image_url?: string;
+  read?: boolean;
   created_at: string;
 }
 
-export interface Conversation {
-  id: string;
-  name?: string;
-  type: "direct" | "group";
-  participants: { id: string; username: string }[];
-  last_message?: Message;
-  created_at: string;
-  updated_at: string;
+interface SendMessageRequest {
+  receiver_id: string;
+  content: string;
+  image_url?: string;
+}
+
+interface MessageQueryParams {
+  page?: number;
+  limit?: number;
+}
+
+// ConversationUser structure from API
+export interface ConversationUser {
+  user_id: string;
+  username: string;
+  avatar_url?: string;
+  last_message?: string;
+  last_message_time?: string;
+  unread_count: number;
+}
+
+// Paginated response structure
+interface PaginatedMessageResponse {
+  data: Message[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
 }
 
 export const chatApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    getConversations: builder.query<Conversation[], void>({
-      query: () => "/chat/conversations",
-      transformResponse: (response: Conversation[] | { conversations: Conversation[] } | { data: Conversation[] }) => {
+    getConversations: builder.query<ConversationUser[], void>({
+      query: () => "/messages/conversations",
+      transformResponse: (response: ConversationUser[] | { conversations: ConversationUser[] } | { data: ConversationUser[] }) => {
         if (Array.isArray(response)) return response;
         if ('conversations' in response) return response.conversations;
         if ('data' in response) return response.data;
@@ -31,29 +52,35 @@ export const chatApi = baseApi.injectEndpoints({
       },
       providesTags: ["Messages" as never],
     }),
-    getMessages: builder.query<Message[], string>({
-      query: (conversationId) => `/chat/conversations/${conversationId}/messages`,
-      transformResponse: (response: Message[] | { messages: Message[] } | { data: Message[] }) => {
+    sendMessage: builder.mutation<Message, SendMessageRequest>({
+      query: (data) => ({
+        url: "/messages",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: ["Messages" as never],
+    }),
+    getConversationMessages: builder.query<Message[] | PaginatedMessageResponse, { userId: string; params?: MessageQueryParams }>({
+      query: ({ userId, params }) => {
+        const searchParams = new URLSearchParams();
+        if (params?.page) searchParams.append("page", params.page.toString());
+        if (params?.limit) searchParams.append("limit", params.limit.toString());
+        const queryString = searchParams.toString();
+        return `/messages/${userId}${queryString ? `?${queryString}` : ""}`;
+      },
+      transformResponse: (response: Message[] | PaginatedMessageResponse | { messages: Message[] } | { data: Message[] }) => {
         if (Array.isArray(response)) return response;
+        if ('data' in response && 'total' in response) return response as PaginatedMessageResponse;
         if ('messages' in response) return response.messages;
         if ('data' in response) return response.data;
         return [];
       },
-      providesTags: (_, __, id) => [{ type: "Messages" as never, id }],
+      providesTags: (_, __, { userId }) => [{ type: "Messages" as never, id: userId }],
     }),
-    sendMessage: builder.mutation<Message, { conversationId: string; content: string }>({
-      query: ({ conversationId, content }) => ({
-        url: `/chat/conversations/${conversationId}/messages`,
-        method: "POST",
-        body: { content },
-      }),
-      invalidatesTags: (_, __, { conversationId }) => [{ type: "Messages" as never, id: conversationId }, "Messages" as never],
-    }),
-    createConversation: builder.mutation<Conversation, { participantIds: string[]; name?: string }>({
-      query: (data) => ({
-        url: "/chat/conversations",
-        method: "POST",
-        body: data,
+    markMessageRead: builder.mutation<Message, string>({
+      query: (messageId) => ({
+        url: `/messages/${messageId}/read`,
+        method: "PATCH",
       }),
       invalidatesTags: ["Messages" as never],
     }),
@@ -62,7 +89,7 @@ export const chatApi = baseApi.injectEndpoints({
 
 export const {
   useGetConversationsQuery,
-  useGetMessagesQuery,
   useSendMessageMutation,
-  useCreateConversationMutation,
+  useGetConversationMessagesQuery,
+  useMarkMessageReadMutation,
 } = chatApi;

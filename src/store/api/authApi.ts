@@ -17,6 +17,10 @@ interface SignupRequest {
   username: string;
 }
 
+interface RefreshTokenRequest {
+  refresh_token: string;
+}
+
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     login: builder.mutation<AuthResponse, LoginRequest>({
@@ -25,12 +29,31 @@ export const authApi = baseApi.injectEndpoints({
         method: "POST",
         body: credentials,
       }),
+      transformResponse: (response: any): AuthResponse => {
+        // Handle different response formats
+        if (response.access_token && response.refresh_token) {
+          return response;
+        }
+        // If response is wrapped in a data property
+        if (response.data && response.data.access_token) {
+          return response.data;
+        }
+        // Return as-is if already correct format
+        return response;
+      },
     }),
     signup: builder.mutation<AuthResponse, SignupRequest>({
       query: (data) => ({
         url: "/auth/register",
         method: "POST",
         body: data,
+      }),
+    }),
+    refresh: builder.mutation<AuthResponse, RefreshTokenRequest>({
+      query: (body) => ({
+        url: "/auth/refresh",
+        method: "POST",
+        body,
       }),
     }),
     logout: builder.mutation<void, { refresh_token: string }>({
@@ -40,7 +63,23 @@ export const authApi = baseApi.injectEndpoints({
         body,
       }),
     }),
+    googleLogin: builder.query<{ url: string }, void>({
+      query: () => "/auth/google",
+    }),
+    googleCallback: builder.query<AuthResponse, { code: string; state?: string }>({
+      query: (params) => ({
+        url: "/auth/google/callback",
+        params,
+      }),
+    }),
   }),
 });
 
-export const { useLoginMutation, useSignupMutation, useLogoutMutation } = authApi;
+export const {
+  useLoginMutation,
+  useSignupMutation,
+  useRefreshMutation,
+  useLogoutMutation,
+  useGoogleLoginQuery,
+  useLazyGoogleCallbackQuery,
+} = authApi;

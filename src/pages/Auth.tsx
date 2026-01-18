@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useLoginMutation, useSignupMutation } from "@/store/api/authApi";
 import { setCredentials } from "@/store/slices/authSlice";
 import { toast } from "sonner";
-import { CheckCircle2, Rocket } from "lucide-react";
+import { CheckCircle2, Rocket, Shield } from "lucide-react";
 export default function Auth() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -40,7 +40,13 @@ export default function Auth() {
       toast.success("Welcome back!");
       navigate("/");
     } catch (error: any) {
-      toast.error(error?.data?.message || "Login failed");
+      console.error("Login error:", error);
+      const errorMessage = 
+        error?.data?.error || 
+        error?.data?.message || 
+        error?.error || 
+        "Login failed. Please check your credentials.";
+      toast.error(errorMessage);
     }
   };
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -189,6 +195,19 @@ export default function Auth() {
                     >
                       {isLoginLoading ? "Signing in..." : "Sign In"}
                     </Button>
+                    <div className="pt-2 border-t border-border">
+                      <Link to="/admin/login">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="w-full text-sm"
+                          disabled={isLoading}
+                        >
+                          <Shield className="mr-2 h-4 w-4" />
+                          Admin Login
+                        </Button>
+                      </Link>
+                    </div>
                   </form>
                 </TabsContent>
 
