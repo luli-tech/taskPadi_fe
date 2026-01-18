@@ -25,7 +25,7 @@ export default function Auth() {
   const [signup, { isLoading: isSignupLoading }] = useSignupMutation();
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/dashboard");
+      navigate("/");
     }
   }, [isAuthenticated, navigate]);
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -36,15 +36,9 @@ export default function Auth() {
         email: formData.get("email") as string,
         password: formData.get("password") as string,
       }).unwrap();
-      
-      // Ensure we have the required tokens
-      if (result.access_token && result.refresh_token) {
-        dispatch(setCredentials(result));
-        toast.success("Welcome back!");
-        navigate("/dashboard");
-      } else {
-        toast.error("Invalid response from server");
-      }
+      dispatch(setCredentials(result));
+      toast.success("Welcome back!");
+      navigate("/");
     } catch (error: any) {
       console.error("Login error:", error);
       const errorMessage = 
@@ -66,7 +60,7 @@ export default function Auth() {
       }).unwrap();
       dispatch(setCredentials(result));
       toast.success("Account created successfully!");
-      navigate("/dashboard");
+      navigate("/");
     } catch (error: any) {
       toast.error(error?.data?.message || "Signup failed");
     }

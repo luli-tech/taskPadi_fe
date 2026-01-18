@@ -7,21 +7,19 @@ import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
 import {
   LayoutDashboard,
-  CheckSquare,
-  MessageSquare,
   LogOut,
   User,
   Menu,
   X,
   Settings,
   Shield,
-  Home
+  Home,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
-export function AppLayout() {
+export function DashboardLayout() {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
   const [logoutApi] = useLogoutMutation();
@@ -46,8 +44,6 @@ export function AppLayout() {
   const navigation = [
     { name: "Home", href: "/", icon: Home },
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Tasks", href: "/tasks", icon: CheckSquare },
-    { name: "Chat", href: "/chat", icon: MessageSquare },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
@@ -74,7 +70,7 @@ export function AppLayout() {
       >
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border flex items-center justify-between">
-            <Link to="/dashboard" className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <img 
                   src="/favicon.ico" 
@@ -98,6 +94,7 @@ export function AppLayout() {
               <NavLink
                 key={item.name}
                 to={item.href}
+                end={item.href === "/"}
                 className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                 activeClassName="bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary"
               >
@@ -163,7 +160,9 @@ export function AppLayout() {
             
             <div className="hidden lg:block">
               <h2 className="text-lg font-semibold">
-                {navigation.find(item => item.href === location.pathname)?.name || "TaskFl"}
+                {navigation.find(item => item.href === location.pathname)?.name || 
+                 adminNav.find(item => item.href === location.pathname)?.name || 
+                 "Dashboard"}
               </h2>
             </div>
 

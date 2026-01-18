@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageLayout } from "@/components/PageLayout";
 import {
   useGetTasksQuery,
   useCreateTaskMutation,
@@ -264,79 +265,80 @@ export default function Tasks() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold mb-2">Tasks</h1>
-          <p className="text-muted-foreground">Manage and track your tasks efficiently</p>
+    <PageLayout title="Tasks">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">Tasks</h1>
+            <p className="text-muted-foreground text-sm">Manage and track your tasks</p>
+          </div>
+
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" />
+                New Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Task</DialogTitle>
+                <DialogDescription>Fill in the details to create a new task</DialogDescription>
+              </DialogHeader>
+              <TaskForm onSubmit={handleCreateTask} isLoading={isCreating} />
+            </DialogContent>
+          </Dialog>
         </div>
 
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              New Task
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Task</DialogTitle>
-              <DialogDescription>Fill in the details to create a new task</DialogDescription>
-            </DialogHeader>
-            <TaskForm onSubmit={handleCreateTask} isLoading={isCreating} />
-          </DialogContent>
-        </Dialog>
-      </div>
+        <Card className="shadow-custom-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Priority</Label>
+              <Select
+                value={filters.priority || "all"}
+                onValueChange={(value) => setFilters({ ...filters, priority: value === "all" ? undefined : value as TaskPriority })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All priorities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All priorities</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+              </div>
 
-      <Card className="shadow-custom-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5" />
-            Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Priority</Label>
-            <Select
-              value={filters.priority || "all"}
-              onValueChange={(value) => setFilters({ ...filters, priority: value === "all" ? undefined : value as TaskPriority })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All priorities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All priorities</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Urgent">Urgent</SelectItem>
-              </SelectContent>
-            </Select>
+              <div className="space-y-2">
+                <Label>Status</Label>
+              <Select
+                value={filters.status || "all"}
+                onValueChange={(value) => setFilters({ ...filters, status: value === "all" ? undefined : value as TaskStatus })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="InProgress">In Progress</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <Label>Status</Label>
-            <Select
-              value={filters.status || "all"}
-              onValueChange={(value) => setFilters({ ...filters, status: value === "all" ? undefined : value as TaskStatus })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="InProgress">In Progress</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
       <Tabs defaultValue="Pending" className="space-y-6">
         <TabsList className={cn(
@@ -379,43 +381,44 @@ export default function Tasks() {
           ))}
         </TabsList>
 
-        {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-          <TabsContent key={status} value={status} className="space-y-4">
-            {isLoading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-              </div>
-            ) : statusTasks.length === 0 ? (
-              <Card className="shadow-custom-md">
-                <CardContent className="py-12">
-                  <div className="text-center text-muted-foreground">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                    <p>No {status.toLowerCase()} tasks</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <AnimatePresence>
-                <div className="grid gap-4">
-                  {statusTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} />
-                  ))}
+          {Object.entries(groupedTasks).map(([status, statusTasks]) => (
+            <TabsContent key={status} value={status} className="space-y-4">
+              {isLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
                 </div>
-              </AnimatePresence>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+              ) : statusTasks.length === 0 ? (
+                <Card className="shadow-custom-md">
+                  <CardContent className="py-12">
+                    <div className="text-center text-muted-foreground">
+                      <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                      <p>No {status.toLowerCase()} tasks</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <AnimatePresence>
+                  <div className="grid gap-4">
+                    {statusTasks.map((task) => (
+                      <TaskCard key={task.id} task={task} />
+                    ))}
+                  </div>
+                </AnimatePresence>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
 
-      <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Task</DialogTitle>
-            <DialogDescription>Update the task details</DialogDescription>
-          </DialogHeader>
-          <TaskForm task={editingTask} onSubmit={handleUpdateTask} isLoading={isUpdating} />
-        </DialogContent>
-      </Dialog>
-    </div>
+        <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Task</DialogTitle>
+              <DialogDescription>Update the task details</DialogDescription>
+            </DialogHeader>
+            <TaskForm task={editingTask} onSubmit={handleUpdateTask} isLoading={isUpdating} />
+          </DialogContent>
+        </Dialog>
+      </div>
+    </PageLayout>
   );
 }

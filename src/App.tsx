@@ -2,14 +2,14 @@ import { Provider } from "react-redux";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { store } from "@/store";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
-import { AppLayout } from "@/components/AppLayout";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdminLogin from "./pages/AdminLogin";
-import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
 import Chat from "./pages/Chat";
@@ -30,20 +30,19 @@ const App = () => (
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/" element={<Index />} />
           <Route
-            path="/"
             element={
               <ProtectedRoute>
-                <AppLayout />
+                <DashboardLayout />
               </ProtectedRoute>
             }
           >
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="tasks" element={<Tasks />} />
-            <Route path="chat" element={<Chat />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="notifications" element={<Notifications />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/notifications" element={<Notifications />} />
             <Route
-              path="admin"
+              path="/admin"
               element={
                 <AdminProtectedRoute>
                   <AdminDashboard />
@@ -51,7 +50,7 @@ const App = () => (
               }
             />
             <Route
-              path="admin/users/:userId"
+              path="/admin/users/:userId"
               element={
                 <AdminProtectedRoute>
                   <UserDetails />
