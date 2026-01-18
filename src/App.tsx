@@ -9,11 +9,14 @@ import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
 import AdminLogin from "./pages/AdminLogin";
+import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
+import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
+import UserDetails from "./pages/UserDetails";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -23,9 +26,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/" element={<Index />} />
           <Route
             path="/"
             element={
@@ -38,11 +41,20 @@ const App = () => (
             <Route path="tasks" element={<Tasks />} />
             <Route path="chat" element={<Chat />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="notifications" element={<Notifications />} />
             <Route
               path="admin"
               element={
                 <AdminProtectedRoute>
                   <AdminDashboard />
+                </AdminProtectedRoute>
+              }
+            />
+            <Route
+              path="admin/users/:userId"
+              element={
+                <AdminProtectedRoute>
+                  <UserDetails />
                 </AdminProtectedRoute>
               }
             />

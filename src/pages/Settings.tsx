@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { User, Bell, Palette, Shield, Save } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function Settings() {
   const { user } = useAppSelector((state) => state.auth);
@@ -40,7 +41,7 @@ export default function Settings() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 max-w-3xl"
+      className="space-y-6 w-full max-w-3xl"
     >
       <div>
         <h1 className="text-3xl font-bold">Settings</h1>
@@ -48,22 +49,67 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="profile" className="flex items-center gap-2">
+        <TabsList className={cn(
+          "w-full",
+          "flex lg:inline-flex",
+          "overflow-x-auto",
+          "lg:overflow-visible",
+          "gap-1",
+          "h-auto lg:h-10",
+          "p-1",
+          "justify-start"
+        )}>
+          <TabsTrigger 
+            value="profile" 
+            className={cn(
+              "flex items-center gap-2",
+              "whitespace-nowrap",
+              "min-w-fit",
+              "px-3 py-2 lg:px-3 lg:py-1.5",
+              "text-xs sm:text-sm"
+            )}
+          >
             <User className="h-4 w-4" />
-            Profile
+            <span>Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="notifications" 
+            className={cn(
+              "flex items-center gap-2",
+              "whitespace-nowrap",
+              "min-w-fit",
+              "px-3 py-2 lg:px-3 lg:py-1.5",
+              "text-xs sm:text-sm"
+            )}
+          >
             <Bell className="h-4 w-4" />
-            Notifications
+            <span>Notifications</span>
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="appearance" 
+            className={cn(
+              "flex items-center gap-2",
+              "whitespace-nowrap",
+              "min-w-fit",
+              "px-3 py-2 lg:px-3 lg:py-1.5",
+              "text-xs sm:text-sm"
+            )}
+          >
             <Palette className="h-4 w-4" />
-            Appearance
+            <span>Appearance</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="security" 
+            className={cn(
+              "flex items-center gap-2",
+              "whitespace-nowrap",
+              "min-w-fit",
+              "px-3 py-2 lg:px-3 lg:py-1.5",
+              "text-xs sm:text-sm"
+            )}
+          >
             <Shield className="h-4 w-4" />
-            Security
+            <span>Security</span>
           </TabsTrigger>
         </TabsList>
 

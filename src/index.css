@@ -119,9 +119,38 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    /* Extend background to safe areas (status bar area) */
+    background-color: hsl(var(--background));
+    /* Support for iOS safe areas */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Ensure body extends to edges */
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for mobile browsers */
+    /* Support for iOS safe areas - negative margins to counteract html padding */
+    margin-top: calc(-1 * env(safe-area-inset-top));
+    margin-bottom: calc(-1 * env(safe-area-inset-bottom));
+    margin-left: calc(-1 * env(safe-area-inset-left));
+    margin-right: calc(-1 * env(safe-area-inset-right));
+  }
+
+  /* Root element also extends to edges */
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+    /* Add safe area padding to content */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   h1, h2, h3, h4, h5, h6 {

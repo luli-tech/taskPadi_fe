@@ -21,6 +21,12 @@ interface RefreshTokenRequest {
   refresh_token: string;
 }
 
+interface AdminRegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     login: builder.mutation<AuthResponse, LoginRequest>({
@@ -72,6 +78,24 @@ export const authApi = baseApi.injectEndpoints({
         params,
       }),
     }),
+    // Admin Registration - Public endpoint
+    adminRegister: builder.mutation<AuthResponse, AdminRegisterRequest>({
+      query: (data) => ({
+        url: "/admin/register",
+        method: "POST",
+        body: data,
+      }),
+      transformResponse: (response: any): AuthResponse => {
+        // Handle different response formats
+        if (response.access_token && response.refresh_token) {
+          return response;
+        }
+        if (response.data && response.data.access_token) {
+          return response.data;
+        }
+        return response;
+      },
+    }),
   }),
 });
 
@@ -82,4 +106,5 @@ export const {
   useLogoutMutation,
   useGoogleLoginQuery,
   useLazyGoogleCallbackQuery,
+  useAdminRegisterMutation,
 } = authApi;

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -337,11 +339,42 @@ export default function Tasks() {
       </Card>
 
       <Tabs defaultValue="Pending" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className={cn(
+          "w-full",
+          "flex lg:grid",
+          "lg:grid-cols-4",
+          "overflow-x-auto",
+          "lg:overflow-visible",
+          "gap-1",
+          "h-auto lg:h-10",
+          "p-1"
+        )}>
           {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-            <TabsTrigger key={status} value={status} className="relative">
-              {status.replace(/([A-Z])/g, " $1").trim()}
-              <Badge variant="secondary" className="ml-2">{statusTasks.length}</Badge>
+            <TabsTrigger 
+              key={status} 
+              value={status} 
+              className={cn(
+                "relative",
+                "flex items-center justify-center gap-2",
+                "whitespace-nowrap",
+                "min-w-fit",
+                "px-4 py-2 lg:px-3 lg:py-1.5",
+                "text-xs sm:text-sm"
+              )}
+            >
+              <span>{status.replace(/([A-Z])/g, " $1").trim()}</span>
+              <Badge 
+                variant="secondary" 
+                className={cn(
+                  "ml-0 lg:ml-2",
+                  "h-5 w-5 lg:h-auto lg:w-auto",
+                  "flex items-center justify-center",
+                  "px-1 text-[10px] lg:text-xs",
+                  "min-w-[20px]"
+                )}
+              >
+                {statusTasks.length}
+              </Badge>
             </TabsTrigger>
           ))}
         </TabsList>

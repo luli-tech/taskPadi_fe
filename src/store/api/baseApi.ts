@@ -41,7 +41,9 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
     url.includes('/auth/login') ||
     url.includes('/auth/register') ||
     url.includes('/auth/logout') ||
-    url.includes('/auth/google')
+    url.includes('/auth/google') ||
+    url.includes('/auth/refresh') ||
+    url.includes('/admin/register')
   );
 
   if (result.error && result.error.status === 401 && !isAuthEndpoint) {
