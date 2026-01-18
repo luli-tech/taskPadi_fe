@@ -108,7 +108,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       devOptions: {
-        enabled: true,
+        enabled: mode === "development",
         type: "module",
       },
     }),

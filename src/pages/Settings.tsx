@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { PageLayout } from "@/components/PageLayout";
 import { User, Bell, Palette, Shield, Save } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -276,6 +275,5 @@ export default function Settings() {
         </TabsContent>
         </Tabs>
       </motion.div>
-    </PageLayout>
   );
 }
