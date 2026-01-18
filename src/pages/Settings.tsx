@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { useAppSelector } from "@/store/hooks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { PageLayout } from "@/components/PageLayout";
 import { User, Bell, Palette, Shield, Save } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -37,17 +38,13 @@ export default function Settings() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 max-w-3xl"
-    >
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and preferences</p>
-      </div>
-
-      <Tabs defaultValue="profile" className="space-y-4">
+    <PageLayout title="Settings">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6 max-w-3xl"
+      >
+        <Tabs defaultValue="profile" className="space-y-4">
         <TabsList>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
@@ -227,7 +224,8 @@ export default function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
-    </motion.div>
+        </Tabs>
+      </motion.div>
+    </PageLayout>
   );
 }

@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageLayout } from "@/components/PageLayout";
 import { Users, CheckSquare, Trash2, Edit, Search, Shield, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -66,15 +67,12 @@ export default function AdminDashboard() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      <div>
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Manage users and view all tasks</p>
-      </div>
+    <PageLayout title="Admin Dashboard">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -276,7 +274,8 @@ export default function AdminDashboard() {
             </Table>
           </Card>
         </TabsContent>
-      </Tabs>
-    </motion.div>
+        </Tabs>
+      </motion.div>
+    </PageLayout>
   );
 }
