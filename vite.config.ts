@@ -34,35 +34,82 @@ export default defineConfig(({ mode }) => ({
 
     VitePWA({
       registerType: "autoUpdate",
+      includeAssets: ["favicon.png", "favicon.ico", "robots.txt", "placeholder.svg"],
       manifest: {
-        name: "TaskPadi",
+        name: "TaskPadi - Task Manager",
         short_name: "TaskPadi",
         description: "A smart task manager built with React + TypeScript",
-        theme_color: "#ffffff",
+        theme_color: "#6366f1",
         background_color: "#ffffff",
         display: "standalone",
+        orientation: "portrait-primary",
+        scope: "/",
         start_url: "/",
+        categories: ["productivity", "business"],
         icons: [
           {
-            src: "/icons/icon-192x192.png",
+            src: "/favicon.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any maskable",
           },
           {
-            src: "/icons/icon-512x512.png",
+            src: "/favicon.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any maskable",
+          },
+        ],
+        shortcuts: [
+          {
+            name: "Tasks",
+            short_name: "Tasks",
+            description: "View your tasks",
+            url: "/tasks",
+            icons: [{ src: "/favicon.png", sizes: "192x192" }],
           },
           {
-            src: "/icons/icon-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
+            name: "Dashboard",
+            short_name: "Dashboard",
+            description: "View dashboard",
+            url: "/dashboard",
+            icons: [{ src: "/favicon.png", sizes: "192x192" }],
           },
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ts,tsx,png,svg,jpg,jpeg}"],
+        globPatterns: ["**/*.{js,css,html,ts,tsx,png,svg,jpg,jpeg,ico,woff,woff2,ttf}"],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/task-manager-84ag\.onrender\.com\/api\/.*/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-cache",
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-cache",
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+            },
+          },
+        ],
+      },
+      devOptions: {
+        enabled: true,
+        type: "module",
       },
     }),
   ],

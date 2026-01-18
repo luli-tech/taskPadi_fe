@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { store } from "@/store";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -13,7 +14,9 @@ import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
+import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
+import UserDetails from "./pages/UserDetails";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -23,56 +26,38 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
-          
-          {/* Protected routes with PageLayout (back button + scroll bottom nav) */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/" element={<Index />} />
           <Route
-            path="/tasks"
-            element={
-              <ProtectedRoute>
-                <Tasks />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/chat"
-            element={
-              <ProtectedRoute>
-                <Chat />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* Dashboard with sidebar layout */}
-          <Route
-            path="/dashboard"
             element={
               <ProtectedRoute>
                 <DashboardLayout />
               </ProtectedRoute>
             }
           >
-            <Route index element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route
+              path="/admin"
+              element={
+                <AdminProtectedRoute>
+                  <AdminDashboard />
+                </AdminProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users/:userId"
+              element={
+                <AdminProtectedRoute>
+                  <UserDetails />
+                </AdminProtectedRoute>
+              }
+            />
           </Route>
-          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

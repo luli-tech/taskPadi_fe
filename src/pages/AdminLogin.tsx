@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { useLoginMutation, useSignupMutation } from "@/store/api/authApi";
+import { useLoginMutation, useAdminRegisterMutation } from "@/store/api/authApi";
 import { setCredentials } from "@/store/slices/authSlice";
 import { toast } from "sonner";
 import { Shield, ArrowLeft, Lock, UserPlus } from "lucide-react";
@@ -23,7 +23,7 @@ export default function AdminLogin() {
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const [login, { isLoading: isLoginLoading }] = useLoginMutation();
-  const [signup, { isLoading: isSignupLoading }] = useSignupMutation();
+  const [adminRegister, { isLoading: isSignupLoading }] = useAdminRegisterMutation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -137,40 +137,27 @@ export default function AdminLogin() {
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const result = await signup({
+      const result = await adminRegister({
         email,
         password,
         username,
       }).unwrap();
 
-      // Ensure we have the required tokens
+      // Admin register endpoint always creates admin users
       if (result.access_token && result.refresh_token) {
-        // Check if user is admin (note: new signups might not be admin by default)
-        // This depends on your backend - you may need to promote users to admin manually
-        try {
-          const payload = JSON.parse(atob(result.access_token.split(".")[1]));
-          if (payload.role === "admin") {
-            dispatch(setCredentials(result));
-            toast.success("Admin account created successfully!");
-            navigate("/admin");
-          } else {
-            dispatch(setCredentials(result));
-            toast.warning("Account created, but admin privileges need to be granted by an existing admin.");
-            navigate("/dashboard");
-          }
-        } catch (error) {
-          toast.error("Invalid token format");
-        }
+        dispatch(setCredentials(result));
+        toast.success("Admin account created successfully! You now have full admin access.");
+        navigate("/admin");
       } else {
         toast.error("Invalid response from server");
       }
     } catch (error: any) {
-      console.error("Signup error:", error);
+      console.error("Admin registration error:", error);
       const errorMessage =
         error?.data?.error ||
         error?.data?.message ||
         error?.error ||
-        "Registration failed. Please try again.";
+        "Admin registration failed. Please try again.";
       toast.error(errorMessage);
     }
   };

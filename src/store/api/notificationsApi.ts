@@ -3,8 +3,10 @@ import { baseApi } from "./baseApi";
 export interface Notification {
   id: string;
   message: string;
-  read: boolean;
+  is_read: boolean;
   created_at: string;
+  user_id?: string;
+  task_id?: string | null;
 }
 
 export interface NotificationPreferences {

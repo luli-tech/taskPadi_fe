@@ -15,7 +15,9 @@ import {
   Shield,
   Home,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 export function DashboardLayout() {
   const dispatch = useAppDispatch();
@@ -24,6 +26,7 @@ export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const isMobile = useIsMobile();
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem("refreshToken");
@@ -44,16 +47,26 @@ export function DashboardLayout() {
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
+  // Bottom navigation without Settings (Settings moved to header)
+  const bottomNavigation = navigation.filter(item => item.name !== "Settings");
+
+  const isChatPage = location.pathname === "/chat";
+  const shouldHideSidebarOnMobile = isMobile && isChatPage;
+
   const adminNav = [
     { name: "Admin", href: "/admin", icon: Shield },
   ];
 
   return (
     <div className="min-h-screen flex">
+      {/* Sidebar - Only visible on desktop */}
       <motion.aside
-        initial={{ x: -300 }}
+        initial={false}
         animate={{ x: sidebarOpen ? 0 : -256 }}
-        className={`fixed lg:fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transition-transform duration-200`}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+        className={cn(
+          "hidden lg:flex fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border"
+        )}
       >
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border flex items-center justify-between">
@@ -128,23 +141,22 @@ export function DashboardLayout() {
         </div>
       </motion.aside>
 
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${sidebarOpen ? 'lg:ml-64' : 'ml-0'}`}>
-        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
+      <div className={cn(
+        "flex-1 flex flex-col min-w-0 transition-all duration-200",
+        sidebarOpen ? 'lg:ml-64' : 'ml-0'
+      )}>
+        {/* Header - Hidden on chat page mobile, visible otherwise */}
+        {!shouldHideSidebarOnMobile && (
+          <header className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+            <div className="flex items-center justify-between px-6 py-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="hidden lg:flex"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
             
             <div className="hidden lg:block">
               <h2 className="text-lg font-semibold">
@@ -154,16 +166,63 @@ export function DashboardLayout() {
               </h2>
             </div>
 
-            <div className="flex items-center gap-2"></div>
+            <div className="flex items-center gap-2">
+              {/* Settings button on mobile - top right */}
+              {isMobile && (
+                <NavLink
+                  to="/settings"
+                  className={cn(
+                    "flex items-center justify-center p-2 rounded-lg transition-colors",
+                    location.pathname === "/settings"
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                  activeClassName="text-primary"
+                >
+                  <Settings className="h-5 w-5" />
+                </NavLink>
+              )}
+            </div>
           </div>
         </header>
+        )}
 
-        <main className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className={cn("flex-1", shouldHideSidebarOnMobile ? "p-0 pb-20" : "p-6 pb-24 sm:pb-6")}>
+          <div className={cn(shouldHideSidebarOnMobile ? "w-full h-full" : "max-w-7xl mx-auto")}>
             <Outlet />
           </div>
         </main>
       </div>
+
+      {/* Bottom Navigation for Mobile (without Settings) */}
+      {/* Hide bottom nav when in a chat conversation on mobile */}
+      {isMobile && !(location.pathname === "/chat" && new URLSearchParams(location.search).get("chat")) && (
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border lg:hidden">
+          <div className="grid grid-cols-4 h-16">
+            {bottomNavigation.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 text-xs transition-colors",
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  activeClassName="text-primary"
+                >
+                  <item.icon className={cn("h-5 w-5", isActive && "text-primary")} />
+                  <span className={cn("font-medium", isActive && "text-primary")}>
+                    {item.name}
+                  </span>
+                </NavLink>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
