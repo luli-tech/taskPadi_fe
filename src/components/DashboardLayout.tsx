@@ -53,8 +53,9 @@ export function DashboardLayout() {
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
-  // Bottom navigation: Dashboard, Tasks, Chat, Notifications (Settings moved to header)
+  // Bottom navigation: Home, Dashboard, Tasks, Chat, Notifications (Settings moved to header)
   const bottomNavigation = [
+    { name: "Home", href: "/", icon: Home },
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Tasks", href: "/tasks", icon: CheckSquare },
     { name: "Chat", href: "/chat", icon: MessageSquare },
@@ -209,23 +210,31 @@ export function DashboardLayout() {
       {/* Hide bottom nav when in a chat conversation on mobile */}
       {isMobile && !(location.pathname === "/chat" && new URLSearchParams(location.search).get("chat")) && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border lg:hidden">
-          <div className="grid grid-cols-4 h-16">
+          <div className="grid grid-cols-5 h-16">
             {bottomNavigation.map((item) => {
-              const isActive = location.pathname === item.href;
+              const isActive = location.pathname === item.href || 
+                (item.href === "/" && location.pathname === "/");
               return (
                 <NavLink
                   key={item.name}
                   to={item.href}
+                  end={item.href === "/"}
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 text-xs transition-colors",
+                    "flex flex-col items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs transition-colors",
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                   activeClassName="text-primary"
                 >
-                  <item.icon className={cn("h-5 w-5", isActive && "text-primary")} />
-                  <span className={cn("font-medium", isActive && "text-primary")}>
+                  <item.icon className={cn(
+                    isMobile ? "h-4 w-4" : "h-5 w-5",
+                    isActive && "text-primary"
+                  )} />
+                  <span className={cn(
+                    "font-medium truncate max-w-full px-1",
+                    isActive && "text-primary"
+                  )}>
                     {item.name}
                   </span>
                 </NavLink>
