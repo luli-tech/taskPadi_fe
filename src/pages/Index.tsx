@@ -364,7 +364,7 @@ export default function Index() {
               {carouselSlides.map((slide, index) => {
                 if (index !== currentSlide) return null;
                 const Icon = slide.icon;
-                return (
+  return (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, x: 50 }}
@@ -377,8 +377,8 @@ export default function Index() {
                       <div className="flex items-center gap-4 mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg bg-primary/10 flex items-center justify-center">
                           <Icon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-primary" />
-                        </div>
-                      </div>
+      </div>
+    </div>
                       <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 sm:mb-6 text-foreground leading-tight">
                         {slide.title}
                       </h1>

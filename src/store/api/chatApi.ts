@@ -137,6 +137,21 @@ export const chatApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Messages" as never],
     }),
+    updateMessage: builder.mutation<Message, { messageId: string; content: string }>({
+      query: ({ messageId, content }) => ({
+        url: `/messages/${messageId}`,
+        method: "PUT",
+        body: { content },
+      }),
+      invalidatesTags: ["Messages" as never],
+    }),
+    deleteMessage: builder.mutation<void, string>({
+      query: (messageId) => ({
+        url: `/messages/${messageId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Messages" as never],
+    }),
     // Group endpoints
     createGroup: builder.mutation<Group, CreateGroupRequest>({
       query: (data) => ({
@@ -214,6 +229,8 @@ export const {
   useGetConversationMessagesQuery,
   useGetGroupMessagesQuery,
   useMarkMessageReadMutation,
+  useUpdateMessageMutation,
+  useDeleteMessageMutation,
   useCreateGroupMutation,
   useGetGroupsQuery,
   useGetGroupQuery,

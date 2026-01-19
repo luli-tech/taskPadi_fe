@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
-import { useGetConversationsQuery, useGetConversationMessagesQuery, useSendMessageMutation, useCreateGroupMutation, useAddGroupMembersMutation } from "@/store/api/chatApi";
+import { useGetConversationsQuery, useGetConversationMessagesQuery, useSendMessageMutation, useUpdateMessageMutation, useDeleteMessageMutation, useCreateGroupMutation, useAddGroupMembersMutation } from "@/store/api/chatApi";
 import { useGetAllUsersQuery } from "@/store/api/usersApi";
 import { useAppSelector } from "@/store/hooks";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Send, Users, UserPlus, Search, ArrowLeft, MoreVertical, Phone, Video } from "lucide-react";
+import { MessageSquare, Send, Users, UserPlus, Search, ArrowLeft, MoreVertical, Phone, Video, Edit, Trash2, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -187,16 +187,29 @@ export default function Chat() {
     return [];
   }, [messagesData]);
 
+  // Reverse messages to display oldest → newest
+  const orderedMessages = useMemo(() => {
+    return [...messages].reverse();
+  }, [messages]);
+
   const [sendMessage, { isLoading: sending }] = useSendMessageMutation();
+  const [updateMessage] = useUpdateMessageMutation();
+  const [deleteMessage] = useDeleteMessageMutation();
   const [messageInput, setMessageInput] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageContent, setEditingMessageContent] = useState("");
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [messageMenuPosition, setMessageMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Scroll to bottom when messages change or user changes
   useEffect(() => {
-    if (messagesContainerRef.current) {
+    if (messagesContainerRef.current && orderedMessages.length > 0) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [orderedMessages, selectedUserId]);
 
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,15 +218,88 @@ export default function Chat() {
     try {
       await sendMessage({ receiver_id: selectedUserId, content: messageInput }).unwrap();
       setMessageInput("");
-      setTimeout(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-        }
-      }, 100);
+      // Scroll to bottom after sending message
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      }
     } catch (error) {
       toast({ title: "Failed to send message", variant: "destructive" });
     }
   }, [messageInput, selectedUserId, sendMessage]);
+
+  const handleLongPress = useCallback((e: React.TouchEvent | React.MouseEvent, messageId: string, isOwn: boolean) => {
+    if (!isOwn) return; // Only allow long press on own messages
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    setSelectedMessageId(messageId);
+    setMessageMenuPosition({ x: clientX, y: clientY });
+  }, []);
+
+  const handleLongPressStart = useCallback((e: React.TouchEvent | React.MouseEvent, messageId: string, isOwn: boolean) => {
+    if (!isOwn) return;
+    
+    longPressTimerRef.current = setTimeout(() => {
+      handleLongPress(e, messageId, isOwn);
+    }, 500); // 500ms for long press
+  }, [handleLongPress]);
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleEditMessage = useCallback((messageId: string, currentContent: string) => {
+    setEditingMessageId(messageId);
+    setEditingMessageContent(currentContent);
+    setSelectedMessageId(null);
+    setMessageMenuPosition(null);
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingMessageId || !editingMessageContent.trim()) return;
+
+    try {
+      await updateMessage({ messageId: editingMessageId, content: editingMessageContent.trim() }).unwrap();
+      setEditingMessageId(null);
+      setEditingMessageContent("");
+      toast({ title: "Message updated", variant: "default" });
+    } catch (error) {
+      toast({ title: "Failed to update message", variant: "destructive" });
+    }
+  }, [editingMessageId, editingMessageContent, updateMessage]);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    if (!confirm("Are you sure you want to delete this message?")) return;
+
+    try {
+      await deleteMessage(messageId).unwrap();
+      setSelectedMessageId(null);
+      setMessageMenuPosition(null);
+      toast({ title: "Message deleted", variant: "default" });
+    } catch (error) {
+      toast({ title: "Failed to delete message", variant: "destructive" });
+    }
+  }, [deleteMessage]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setSelectedMessageId(null);
+      setMessageMenuPosition(null);
+    };
+
+    if (selectedMessageId) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [selectedMessageId]);
 
   const availableUsersForGroup = useMemo(() => {
     return allUsers.filter(u => u.id !== user?.id);
@@ -228,7 +314,11 @@ export default function Chat() {
     );
   }, [availableUsersForGroup, searchQuery]);
 
-  const handleToggleMember = useCallback((userId: string) => {
+  const handleToggleMember = useCallback((userId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setSelectedMemberIds(prev => {
       const next = new Set(prev);
       if (next.has(userId)) {
@@ -554,8 +644,7 @@ export default function Chat() {
             <div 
               ref={messagesContainerRef}
               className={cn(
-                "flex-1 overflow-y-auto",
-                "pb-4"
+                "flex-1 overflow-y-auto"
               )}
             >
               {messagesLoading ? (
@@ -565,7 +654,7 @@ export default function Chat() {
                     <p className="text-sm">Loading messages...</p>
                   </div>
                 </div>
-              ) : messages.length === 0 ? (
+              ) : orderedMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center text-muted-foreground max-w-xs px-4">
                     <div className="bg-white/50 rounded-full p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
@@ -576,11 +665,11 @@ export default function Chat() {
                   </div>
                 </div>
               ) : (
-                <div className="px-3 sm:px-4 pt-4 space-y-1">
-                  {messages.map((msg, index) => {
+                <div className="px-3 sm:px-4 pt-4 pb-4 space-y-1">
+                  {orderedMessages.map((msg, index) => {
                     const isOwn = msg.sender_id === user?.id;
-                    const prevMsg = index > 0 ? messages[index - 1] : null;
-                    const nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
+                    const prevMsg = index > 0 ? orderedMessages[index - 1] : null;
+                    const nextMsg = index < orderedMessages.length - 1 ? orderedMessages[index + 1] : null;
                     const showAvatar = !isOwn && (!nextMsg || nextMsg.sender_id !== msg.sender_id);
                     const showTimeSeparator = prevMsg && 
                       new Date(msg.created_at).getDate() !== new Date(prevMsg.created_at).getDate();
@@ -621,21 +710,70 @@ export default function Chat() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.2 }}
+                            onTouchStart={(e) => handleLongPressStart(e, msg.id, isOwn)}
+                            onTouchEnd={handleLongPressEnd}
+                            onMouseDown={(e) => handleLongPressStart(e, msg.id, isOwn)}
+                            onMouseUp={handleLongPressEnd}
+                            onMouseLeave={handleLongPressEnd}
                             className={cn(
                               "max-w-[75%] sm:max-w-[65%] lg:max-w-[55%] rounded-lg shadow-sm",
                               "px-3 py-2",
+                              isOwn && "cursor-pointer select-none",
                               isOwn
                                 ? "bg-[#d9fdd3] rounded-tr-sm"
-                                : "bg-white rounded-tl-sm"
+                                : "bg-white rounded-tl-sm",
+                              selectedMessageId === msg.id && isOwn && "ring-2 ring-primary"
                             )}
                           >
-                            <p className={cn(
-                              "break-words whitespace-pre-wrap",
-                              isMobile ? "text-sm" : "text-[15px]",
-                              "leading-relaxed"
-                            )}>
-                              {msg.content}
-                            </p>
+                            {editingMessageId === msg.id ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={editingMessageContent}
+                                  onChange={(e) => setEditingMessageContent(e.target.value)}
+                                  className="text-sm"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSaveEdit();
+                                    }
+                                    if (e.key === "Escape") {
+                                      setEditingMessageId(null);
+                                      setEditingMessageContent("");
+                                    }
+                                  }}
+                                />
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={handleSaveEdit}
+                                    className="h-7 text-xs"
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditingMessageId(null);
+                                      setEditingMessageContent("");
+                                    }}
+                                    className="h-7 text-xs"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className={cn(
+                                "break-words whitespace-pre-wrap",
+                                isMobile ? "text-sm" : "text-[15px]",
+                                "leading-relaxed"
+                              )}>
+                                {msg.content}
+                              </p>
+                            )}
                             {msg.image_url && (
                               <img 
                                 src={msg.image_url} 
@@ -680,6 +818,43 @@ export default function Chat() {
                 </div>
               )}
             </div>
+
+            {/* Message Options Menu */}
+            <AnimatePresence>
+              {selectedMessageId && messageMenuPosition && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="fixed z-50 bg-card border border-border rounded-lg shadow-lg p-1 min-w-[120px]"
+                  style={{
+                    left: `${Math.min(messageMenuPosition.x, window.innerWidth - 140)}px`,
+                    top: `${Math.min(messageMenuPosition.y, window.innerHeight - 100)}px`,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => {
+                      const message = orderedMessages.find(m => m.id === selectedMessageId);
+                      if (message) {
+                        handleEditMessage(message.id, message.content);
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors"
+                  >
+                    <Edit className="h-4 w-4" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMessage(selectedMessageId)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Message Input - WhatsApp style */}
             <form 
@@ -789,11 +964,21 @@ export default function Chat() {
                           "flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors",
                           selectedMemberIds.has(member.id) && "bg-primary/5"
                         )}
-                        onClick={() => handleToggleMember(member.id)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleToggleMember(member.id, e);
+                        }}
                       >
                         <Checkbox
                           checked={selectedMemberIds.has(member.id)}
-                          onCheckedChange={() => handleToggleMember(member.id)}
+                          onCheckedChange={() => {
+                            handleToggleMember(member.id);
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
                           disabled={isCreatingGroup}
                         />
                         <Avatar className="h-8 w-8">
