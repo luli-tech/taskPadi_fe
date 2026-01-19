@@ -101,7 +101,8 @@ export const chatApi = baseApi.injectEndpoints({
         if (params?.page) searchParams.append("page", params.page.toString());
         if (params?.limit) searchParams.append("limit", params.limit.toString());
         const queryString = searchParams.toString();
-        return `/messages/${userId}${queryString ? `?${queryString}` : ""}`;
+        // Correct endpoint: /messages/conversation/:user_id (singular "conversation")
+        return `/messages/conversation/${userId}${queryString ? `?${queryString}` : ""}`;
       },
       transformResponse: (response: Message[] | PaginatedMessageResponse | { messages: Message[] } | { data: Message[] }) => {
         if (Array.isArray(response)) return response;

@@ -14,6 +14,9 @@ import {
   Settings,
   Shield,
   Home,
+  CheckSquare,
+  MessageSquare,
+  Bell,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -44,11 +47,19 @@ export function DashboardLayout() {
   const navigation = [
     { name: "Home", href: "/", icon: Home },
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Tasks", href: "/tasks", icon: CheckSquare },
+    { name: "Chat", href: "/chat", icon: MessageSquare },
+    { name: "Notifications", href: "/notifications", icon: Bell },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
-  // Bottom navigation without Settings (Settings moved to header)
-  const bottomNavigation = navigation.filter(item => item.name !== "Settings");
+  // Bottom navigation: Dashboard, Tasks, Chat, Notifications (Settings moved to header)
+  const bottomNavigation = [
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Tasks", href: "/tasks", icon: CheckSquare },
+    { name: "Chat", href: "/chat", icon: MessageSquare },
+    { name: "Notifications", href: "/notifications", icon: Bell },
+  ];
 
   const isChatPage = location.pathname === "/chat";
   const shouldHideSidebarOnMobile = isMobile && isChatPage;

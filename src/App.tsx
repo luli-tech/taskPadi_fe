@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDetails from "./pages/UserDetails";
+import ChatUserDetails from "./pages/ChatUserDetails";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/users/:userId" element={<ChatUserDetails />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route
