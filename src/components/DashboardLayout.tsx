@@ -80,8 +80,8 @@ export function DashboardLayout() {
           "hidden lg:flex fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border"
         )}
       >
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-border flex items-center justify-between">
+        <div className="flex flex-col h-full overflow-hidden">
+          <div className="p-6 border-b border-border flex items-center justify-between shrink-0">
             <Link to="/" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <img 
@@ -92,16 +92,19 @@ export function DashboardLayout() {
               </div>
               <span className="text-xl font-bold">TaskPadi</span>
             </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="w-5 h-5" />
-            </Button>
+            {sidebarOpen && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(false)}
+                className="lg:flex"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            )}
           </div>
 
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0">
             {navigation.map((item) => (
               <NavLink
                 key={item.name}
@@ -131,9 +134,9 @@ export function DashboardLayout() {
             </div>
           </nav>
 
-          <div className="p-4 border-t border-border">
+          <div className="p-4 border-t border-border shrink-0">
             <div className="flex items-center gap-3 mb-3 px-4 py-2">
-              <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center shrink-0">
                 <User className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
@@ -165,7 +168,7 @@ export function DashboardLayout() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="hidden lg:flex"
+                className={cn("hidden lg:flex", sidebarOpen && "lg:hidden")}
               >
                 <Menu className="w-5 h-5" />
               </Button>
