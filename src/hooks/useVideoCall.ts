@@ -178,12 +178,33 @@ export const useVideoCall = (currentUserId: string) => {
     try {
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: type === 'video' ? { width: 1280, height: 720 } : false, 
+        console.log(`Requesting media permissions for ${type} call...`);
+        const constraints = { 
+          video: type === 'video' ? { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 },
+            facingMode: 'user'
+          } : false, 
           audio: true 
-        });
+        };
+        
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+          console.warn("Primary constraints failed, retrying with minimal constraints:", err);
+          // Fallback to minimal constraints to at least trigger the permission prompt
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            video: type === 'video', 
+            audio: true 
+          });
+        }
       } catch (mediaError) {
-        toast({ title: `Failed to access devices. Please check permissions.`, variant: "destructive" });
+        console.error("Final media access error:", mediaError);
+        toast({ 
+          title: `Unable to access camera/microphone`, 
+          description: "Please check your browser settings and ensure no other application is using your camera.", 
+          variant: "destructive" 
+        });
         return;
       }
       
@@ -210,12 +231,32 @@ export const useVideoCall = (currentUserId: string) => {
     try {
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: type === 'video' ? { width: 1280, height: 720 } : false, 
+        console.log(`Requesting media permissions for group ${type} call...`);
+        const constraints = { 
+          video: type === 'video' ? { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 },
+            facingMode: 'user'
+          } : false, 
           audio: true 
-        });
+        };
+        
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+          console.warn("Group call constraints failed, retrying minimal:", err);
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            video: type === 'video', 
+            audio: true 
+          });
+        }
       } catch (mediaError) {
-        toast({ title: `Failed to access devices.`, variant: "destructive" });
+        console.error("Media access error (group):", mediaError);
+        toast({ 
+          title: `Camera/Microphone failure`, 
+          description: "Could not start media. Check your browser permissions.", 
+          variant: "destructive" 
+        });
         return;
       }
 
@@ -254,12 +295,32 @@ export const useVideoCall = (currentUserId: string) => {
     try {
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: callType === 'video' ? { width: 1280, height: 720 } : false, 
+        console.log(`Requesting media permissions for ${callType} call (accepting)...`);
+        const constraints = { 
+          video: callType === 'video' ? { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 },
+            facingMode: 'user'
+          } : false, 
           audio: true 
-        });
+        };
+
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+          console.warn("Accept call constraints failed, retrying minimal:", err);
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            video: callType === 'video', 
+            audio: true 
+          });
+        }
       } catch (mediaError) {
-        toast({ title: `Failed to access devices.`, variant: "destructive" });
+        console.error("Media access error (accept):", mediaError);
+        toast({ 
+          title: `Failed to join call`, 
+          description: "Could not access your camera or microphone. Please check permissions.", 
+          variant: "destructive" 
+        });
         return;
       }
 
