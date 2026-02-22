@@ -185,27 +185,56 @@ export const useVideoCall = (currentUserId: string) => {
       unsubAccepted();
       unsubRejected();
       unsubEnded();
-    };
   }, [currentUserId, activeCallId, connectToMediaRelay, cleanup, toast, updateStatus, localStream]);
+
+  // Comprehensive check for browser capabilities required for this architecture
+  const checkCapabilities = useCallback(() => {
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    if (!isSecure) {
+      toast({ 
+        title: "Insecure Context", 
+        description: "Camera and Microphone access requires HTTPS. Please ensure you are using an https:// URL.", 
+        variant: "destructive" 
+      });
+      return false;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast({ 
+        title: "Unsupported Browser", 
+        description: "Your browser does not support camera/microphone access. If you are in an In-App Browser (WhatsApp, Instagram), please open this link in Safari or Chrome.", 
+        variant: "destructive" 
+      });
+      return false;
+    }
+
+    const hasWebCodecs = (window as any).VideoEncoder && (window as any).VideoDecoder;
+    const hasGenerators = (window as any).MediaStreamTrackGenerator;
+
+    if (!hasWebCodecs || !hasGenerators) {
+      toast({ 
+        title: "Browser Too Old", 
+        description: "Your browser doesn't support the required media technology (WebCodecs). Please try the latest version of Chrome, Edge, or Safari (iOS 15.4+).", 
+        variant: "destructive" 
+      });
+      return false;
+    }
+
+    return true;
+  }, [toast]);
 
   // Helper for consistent media access across mobile and desktop
   const getMediaStream = async (type: 'video' | 'voice'): Promise<MediaStream> => {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const isInAppBrowser = /FBAN|FBAV|Instagram|LinkedIn|Messenger|Twitter/i.test(navigator.userAgent);
-    
-    if (isInAppBrowser) {
-      console.warn("User is in an In-App Browser. These often block camera/mic access.");
+    if (!checkCapabilities()) {
+      throw new Error("Capabilities check failed");
     }
 
-    // Mobile browsers (especially Safari) are much more likely to show the prompt
-    // if the constraints are simple.
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // Absolute minimum constraints for mobile to force the prompt
     const constraints: MediaStreamConstraints = {
       audio: true,
-      video: type === 'video' ? (isMobile ? {
-        facingMode: 'user',
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      } : {
+      video: type === 'video' ? (isMobile ? true : {
         width: { ideal: 1280 },
         height: { ideal: 720 },
         facingMode: 'user'
@@ -216,8 +245,7 @@ export const useVideoCall = (currentUserId: string) => {
       console.log(`Requesting media (${type}) with constraints:`, constraints);
       return await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
-      console.warn("Primary media request failed, retrying with absolute minimums...", err);
-      // Absolute fallback - removes all 'ideal' logic for maximum compatibility
+      console.warn("Primary media request failed, retrying with raw true/true...", err);
       return await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: type === 'video'
