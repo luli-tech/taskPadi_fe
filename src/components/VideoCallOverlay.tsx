@@ -221,76 +221,104 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
         </div>
 
         {/* Controls */}
-        <div className="bg-zinc-900/90 backdrop-blur-md p-8 flex items-center justify-center gap-8">
+        <div className="bg-zinc-900/90 backdrop-blur-md p-6 sm:p-8 flex items-start justify-center gap-8 sm:gap-12">
           {status === CallStatus.INCOMING ? (
             <>
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  size="lg"
+                  variant="destructive"
+                  className="h-16 w-16 sm:h-18 sm:w-18 rounded-full hover:scale-110 transition-transform shadow-lg shadow-destructive/20"
+                  onClick={onReject}
+                >
+                  <PhoneOff className="h-7 w-7 sm:h-8 sm:w-8" />
+                </Button>
+                <span className="text-white text-xs font-medium tracking-wide opacity-80">Decline</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 mt-[-20px]">
+                <Button
+                  size="lg"
+                  className="h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-green-500 hover:bg-green-600 shadow-xl shadow-green-500/30 hover:scale-110 transition-transform animate-pulse"
+                  onClick={onAccept}
+                >
+                  <Phone className="h-10 w-10 sm:h-12 sm:w-12 text-white fill-white" />
+                </Button>
+                <span className="text-green-400 text-xs font-medium tracking-wide">Accept</span>
+              </div>
+            </>
+          ) : status === CallStatus.OUTGOING ? (
+            <div className="flex flex-col items-center gap-2">
               <Button
                 size="lg"
                 variant="destructive"
-                className="h-16 w-16 rounded-full hover:scale-110 transition-transform"
-                onClick={onReject}
+                className="h-16 w-16 sm:h-20 sm:w-20 rounded-full shadow-lg shadow-destructive/20 hover:scale-110 transition-transform"
+                onClick={onEnd}
               >
-                <PhoneOff className="h-7 w-7" />
+                <PhoneOff className="h-7 w-7 sm:h-9 sm:w-9" />
               </Button>
-              <Button
-                size="lg"
-                className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-xl shadow-green-500/20 hover:scale-110 transition-transform"
-                onClick={onAccept}
-              >
-                <Phone className="h-10 w-10 text-white fill-white" />
-              </Button>
-            </>
+              <span className="text-white text-xs font-medium tracking-wide opacity-80">Cancel</span>
+            </div>
           ) : (
             <>
-              <Button
-                size="icon"
-                variant="secondary"
-                className="h-14 w-14 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-white/5"
-              >
-                <Mic className="h-6 w-6" />
-              </Button>
+              <div className="flex flex-col items-center justify-center gap-2">
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-white/5"
+                >
+                  <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
+                </Button>
+              </div>
 
               {/* Add Participant button (shown when active) */}
               {status === CallStatus.ACTIVE && onAddParticipant && (
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className={cn(
-                    "h-14 w-14 rounded-full border border-white/5 text-white transition-colors",
-                    showParticipants ? "bg-primary hover:bg-primary/80" : "bg-zinc-800 hover:bg-zinc-700"
-                  )}
-                  onClick={() => setShowParticipants(p => !p)}
-                  title="Manage participants"
-                >
-                  <Users className="h-6 w-6" />
-                </Button>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className={cn(
+                      "h-12 w-12 sm:h-14 sm:w-14 rounded-full border border-white/5 text-white transition-colors",
+                      showParticipants ? "bg-primary hover:bg-primary/80" : "bg-zinc-800 hover:bg-zinc-700"
+                    )}
+                    onClick={() => setShowParticipants(p => !p)}
+                    title="Manage participants"
+                  >
+                    <Users className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </Button>
+                </div>
               )}
               
-              <Button
-                size="lg"
-                variant="destructive"
-                className="h-16 w-16 rounded-full shadow-lg shadow-destructive/20 hover:scale-110 transition-transform"
-                onClick={onEnd}
-              >
-                <PhoneOff className="h-7 w-7" />
-              </Button>
+              <div className="flex flex-col items-center justify-center gap-2">
+                <Button
+                  size="lg"
+                  variant="destructive"
+                  className="h-16 w-16 sm:h-20 sm:w-20 rounded-full shadow-lg shadow-destructive/20 hover:scale-110 transition-transform"
+                  onClick={onEnd}
+                >
+                  <PhoneOff className="h-7 w-7 sm:h-9 sm:w-9" />
+                </Button>
+              </div>
 
               {isVideo ? (
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="h-14 w-14 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-white/5"
-                >
-                  <Video className="h-6 w-6" />
-                </Button>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-white/5"
+                  >
+                    <Video className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </Button>
+                </div>
               ) : (
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="h-14 w-14 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-white/5"
-                >
-                  <Phone className="h-6 w-6" />
-                </Button>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-white/5"
+                  >
+                    <Phone className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </Button>
+                </div>
               )}
             </>
           )}
