@@ -219,7 +219,7 @@ export default function Index() {
               <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                 <CheckSquare className="w-6 h-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">TaskFlow</span>
+              <span className="text-xl font-bold">TaskPadi</span>
             </Link>
           </div>
 
@@ -306,7 +306,7 @@ export default function Index() {
                       <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                         <CheckSquare className="w-6 h-6 text-primary-foreground" />
                       </div>
-                      <span className="text-xl font-bold">TaskFlow</span>
+                      <span className="text-xl font-bold">TaskPadi</span>
                     </Link>
                   </div>
                   <Button onClick={() => navigate("/auth")} size="sm">

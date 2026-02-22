@@ -19,6 +19,7 @@ export interface VideoCall {
   started_at: string;
   ended_at: string | null;
   participants: CallParticipant[];
+  media_ws_path?: string;
 }
 
 export interface InitiateCallRequest {

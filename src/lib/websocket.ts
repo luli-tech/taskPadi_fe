@@ -10,9 +10,6 @@ export enum WsMessageType {
   CallAccepted = "call_accepted",
   CallRejected = "call_rejected",
   CallEnded = "call_ended",
-  CallOffer = "call_offer",
-  CallAnswer = "call_answer",
-  IceCandidate = "ice_candidate",
   Error = "error",
   Ping = "ping",
   Pong = "pong",
@@ -32,6 +29,10 @@ export class WebSocketService {
 
   constructor(url: string) {
     this.url = url;
+  }
+
+  getUrl() {
+    return this.url;
   }
 
   connect(token: string) {
@@ -120,16 +121,16 @@ export class WebSocketService {
   }
 
   // Helper methods for signaling
-  sendCallOffer(callId: string, toUserId: string, sdp: string) {
-    this.send("send_call_offer", { call_id: callId, to_user_id: toUserId, sdp });
+  acceptCall(callId: string) {
+    this.send("accept_call", { call_id: callId });
   }
 
-  sendCallAnswer(callId: string, toUserId: string, sdp: string) {
-    this.send("send_call_answer", { call_id: callId, to_user_id: toUserId, sdp });
+  rejectCall(callId: string) {
+    this.send("reject_call", { call_id: callId });
   }
 
-  sendIceCandidate(callId: string, toUserId: string, candidate: string) {
-    this.send("send_ice_candidate", { call_id: callId, to_user_id: toUserId, candidate });
+  endCall(callId: string) {
+    this.send("end_call", { call_id: callId });
   }
 
   disconnect() {

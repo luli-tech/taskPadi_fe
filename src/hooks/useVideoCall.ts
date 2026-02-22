@@ -9,6 +9,7 @@ import {
   type CallParticipant,
 } from '@/store/api/videoCallApi';
 import { useToast } from '@/hooks/use-toast';
+import { MediaEngine, MediaType } from '@/lib/mediaEngine';
 
 export enum CallStatus {
   IDLE = 'idle',
@@ -34,7 +35,11 @@ export const useVideoCall = (currentUserId: string) => {
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
   const [isGroupCall, setIsGroupCall] = useState(false);
   
-  const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const statusRef = useRef<CallStatus>(CallStatus.IDLE);
+  const mediaWs = useRef<WebSocket | null>(null);
+  const mediaEngine = useRef<MediaEngine | null>(null);
+  const remoteVideoWriter = useRef<any>(null);
+  
   const { toast } = useToast();
 
   const [initiateCallApi] = useInitiateCallMutation();
@@ -43,12 +48,10 @@ export const useVideoCall = (currentUserId: string) => {
   const [endCallApi] = useEndCallMutation();
   const [addParticipantApi] = useAddParticipantMutation();
 
-  const configuration: RTCConfiguration = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ],
-  };
+  const updateStatus = useCallback((newStatus: CallStatus) => {
+    setStatus(newStatus);
+    statusRef.current = newStatus;
+  }, []);
 
   const cleanup = useCallback(() => {
     if (localStream) {
@@ -59,86 +62,92 @@ export const useVideoCall = (currentUserId: string) => {
       remoteStream.getTracks().forEach(track => track.stop());
       setRemoteStream(null);
     }
-    if (peerConnection.current) {
-      peerConnection.current.close();
-      peerConnection.current = null;
+    if (mediaWs.current) {
+      mediaWs.current.close();
+      mediaWs.current = null;
     }
-    setStatus(CallStatus.IDLE);
+    if (mediaEngine.current) {
+      mediaEngine.current.destroy();
+      mediaEngine.current = null;
+    }
+    remoteVideoWriter.current = null;
+    
+    updateStatus(CallStatus.IDLE);
     setActiveCallId(null);
     setRemoteUser(null);
     setParticipants([]);
     setIsGroupCall(false);
-  }, [localStream, remoteStream]);
+  }, [localStream, remoteStream, updateStatus]);
 
-  const setupPeerConnection = useCallback((callId: string, toUserId: string) => {
-    const pc = new RTCPeerConnection(configuration);
+  const connectToMediaRelay = useCallback((path: string, currentLocalStream: MediaStream | null) => {
+    if (mediaWs.current) mediaWs.current.close();
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        wsService.sendIceCandidate(callId, toUserId, JSON.stringify(event.candidate));
+    const baseUrl = wsService.getUrl().replace('wss://', '').replace('ws://', '').split('/api/')[0];
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const fullUrl = `${protocol}//${baseUrl}${path}`;
+    const token = localStorage.getItem("authToken");
+
+    console.log(`Connecting to media relay: ${fullUrl}`);
+    const socket = new WebSocket(`${fullUrl}${token ? `?token=${token}` : ''}`);
+    socket.binaryType = 'arraybuffer';
+
+    // Initialize MediaEngine
+    const onFrame = (userId: string, type: MediaType, frame: any) => {
+      if (type === MediaType.VIDEO && remoteVideoWriter.current) {
+        remoteVideoWriter.current.write(frame);
+      } else {
+        frame.close();
       }
     };
 
-    pc.ontrack = (event) => {
-      setRemoteStream(event.streams[0]);
+    const engine = new MediaEngine(socket, currentUserId, onFrame);
+    mediaEngine.current = engine;
+
+    socket.onopen = () => {
+      console.log("Media relay connected");
+      
+      // Create remote track generator
+      if ((window as any).MediaStreamTrackGenerator) {
+        const videoGenerator = new (window as any).MediaStreamTrackGenerator({ kind: 'video' });
+        remoteVideoWriter.current = videoGenerator.writable.getWriter();
+        setRemoteStream(new MediaStream([videoGenerator]));
+      }
+
+      // Start encoding local stream
+      if (currentLocalStream && engine) {
+        engine.startEncoding(currentLocalStream);
+      }
     };
 
-    if (localStream) {
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    }
+    socket.onmessage = (event) => {
+      if (event.data instanceof ArrayBuffer && mediaEngine.current) {
+        mediaEngine.current.handleIncomingData(event.data);
+      }
+    };
 
-    peerConnection.current = pc;
-    return pc;
-  }, [localStream]);
+    socket.onclose = () => {
+      console.log("Media relay closed");
+    };
 
-  // Handle incoming signaling messages
+    mediaWs.current = socket;
+  }, [currentUserId]);
+
+  // Handle incoming signaling messages from the main WebSocket
   useEffect(() => {
     const unsubInitiated = wsService.subscribe(WsMessageType.CallInitiated, (data) => {
       if (data.receiver_id === currentUserId) {
         setActiveCallId(data.call_id);
         setCallType(data.call_type as 'video' | 'voice');
         setRemoteUser({ id: data.caller_id, username: data.caller_username || 'User' });
-        setStatus(CallStatus.INCOMING);
+        updateStatus(CallStatus.INCOMING);
       }
     });
 
-    const unsubAccepted = wsService.subscribe(WsMessageType.CallAccepted, async (data) => {
-      if (status === CallStatus.OUTGOING && data.call_id === activeCallId) {
-        setStatus(CallStatus.ACTIVE);
-        
-        // Create offer
-        const pc = setupPeerConnection(data.call_id, data.receiver_id);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        
-        wsService.sendCallOffer(data.call_id, data.receiver_id, offer.sdp!);
-      }
-    });
-
-    const unsubOffer = wsService.subscribe(WsMessageType.CallOffer, async (data) => {
-      if (status === CallStatus.ACTIVE && data.call_id === activeCallId) {
-        const pc = setupPeerConnection(data.call_id, data.from_user_id);
-        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
-        
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        
-        wsService.sendCallAnswer(data.call_id, data.from_user_id, answer.sdp!);
-      }
-    });
-
-    const unsubAnswer = wsService.subscribe(WsMessageType.CallAnswer, async (data) => {
-      if (peerConnection.current && data.call_id === activeCallId) {
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
-      }
-    });
-
-    const unsubIce = wsService.subscribe(WsMessageType.IceCandidate, async (data) => {
-      if (peerConnection.current && data.call_id === activeCallId) {
-        try {
-          await peerConnection.current.addIceCandidate(new RTCIceCandidate(JSON.parse(data.candidate)));
-        } catch (e) {
-          console.error("Error adding received ice candidate", e);
+    const unsubAccepted = wsService.subscribe(WsMessageType.CallAccepted, (data) => {
+      if (statusRef.current === CallStatus.OUTGOING && data.call_id === activeCallId) {
+        updateStatus(CallStatus.ACTIVE);
+        if (data.media_ws_path) {
+          connectToMediaRelay(data.media_ws_path, localStream);
         }
       }
     });
@@ -160,25 +169,21 @@ export const useVideoCall = (currentUserId: string) => {
     return () => {
       unsubInitiated();
       unsubAccepted();
-      unsubOffer();
-      unsubAnswer();
-      unsubIce();
       unsubRejected();
       unsubEnded();
     };
-  }, [currentUserId, status, activeCallId, setupPeerConnection, cleanup, toast]);
+  }, [currentUserId, activeCallId, connectToMediaRelay, cleanup, toast, updateStatus, localStream]);
 
   const initiateCall = async (receiverId: string, receiverUsername: string, type: 'video' | 'voice' = 'video') => {
     try {
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ 
-          video: type === 'video', 
+          video: type === 'video' ? { width: 1280, height: 720 } : false, 
           audio: true 
         });
       } catch (mediaError) {
-        console.error("Media devices error:", mediaError);
-        toast({ title: `Failed to access ${type === 'video' ? 'camera or ' : ''}microphone. Please check permissions.`, variant: "destructive" });
+        toast({ title: `Failed to access devices. Please check permissions.`, variant: "destructive" });
         return;
       }
       
@@ -190,12 +195,12 @@ export const useVideoCall = (currentUserId: string) => {
         receiver_id: receiverId,
         call_type: type
       }).unwrap();
+      
       setActiveCallId(call.id);
       setRemoteUser({ id: receiverId, username: receiverUsername });
       setParticipants(call.participants || []);
-      setStatus(CallStatus.OUTGOING);
+      updateStatus(CallStatus.OUTGOING);
     } catch (error: any) {
-      console.error("Failed to initiate call API:", error);
       const msg = error?.data?.error || error?.data?.message || "Failed to initiate call";
       toast({ title: msg, variant: "destructive" });
     }
@@ -206,12 +211,11 @@ export const useVideoCall = (currentUserId: string) => {
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ 
-          video: type === 'video', 
+          video: type === 'video' ? { width: 1280, height: 720 } : false, 
           audio: true 
         });
       } catch (mediaError) {
-        console.error("Media devices error:", mediaError);
-        toast({ title: `Failed to access ${type === 'video' ? 'camera or ' : ''}microphone. Please check permissions.`, variant: "destructive" });
+        toast({ title: `Failed to access devices.`, variant: "destructive" });
         return;
       }
 
@@ -223,30 +227,25 @@ export const useVideoCall = (currentUserId: string) => {
         group_id: groupId,
         call_type: type
       }).unwrap();
+      
       setActiveCallId(call.id);
       setRemoteUser({ id: groupId, username: groupName });
       setParticipants(call.participants || []);
-      setStatus(CallStatus.OUTGOING);
-      toast({ title: `Starting group ${type} call in ${groupName}...` });
+      updateStatus(CallStatus.OUTGOING);
     } catch (error: any) {
-      console.error("Failed to initiate group call:", error);
       const msg = error?.data?.error || error?.data?.message || "Failed to start group call";
       toast({ title: msg, variant: "destructive" });
     }
   };
 
   const addParticipantToCall = async (userId: string, username: string) => {
-    if (!activeCallId) {
-      toast({ title: "No active call", variant: "destructive" });
-      return;
-    }
+    if (!activeCallId) return;
     try {
       const call = await addParticipantApi({ callId: activeCallId, data: { user_id: userId } }).unwrap();
       setParticipants(call.participants || []);
-      toast({ title: `${username} has been invited to the call` });
+      toast({ title: `${username} has been invited` });
     } catch (error: any) {
-      const msg = error?.data?.error || error?.data?.message || "Failed to add participant";
-      toast({ title: msg, variant: "destructive" });
+      toast({ title: "Failed to add participant", variant: "destructive" });
     }
   };
 
@@ -256,21 +255,24 @@ export const useVideoCall = (currentUserId: string) => {
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ 
-          video: callType === 'video', 
+          video: callType === 'video' ? { width: 1280, height: 720 } : false, 
           audio: true 
         });
       } catch (mediaError) {
-        console.error("Media devices error:", mediaError);
-        toast({ title: `Failed to access ${callType === 'video' ? 'camera or ' : ''}microphone. Please check permissions.`, variant: "destructive" });
+        toast({ title: `Failed to access devices.`, variant: "destructive" });
         return;
       }
 
       setLocalStream(stream);
+      const call = await acceptCallApi(activeCallId).unwrap();
       
-      await acceptCallApi(activeCallId).unwrap();
-      setStatus(CallStatus.ACTIVE);
+      const mediaPath = (call as any).media_ws_path;
+      if (mediaPath) {
+        connectToMediaRelay(mediaPath, stream);
+      }
+      
+      updateStatus(CallStatus.ACTIVE);
     } catch (error: any) {
-      console.error("Failed to accept call:", error);
       const msg = error?.data?.error || error?.data?.message || "Failed to accept call";
       toast({ title: msg, variant: "destructive" });
     }
@@ -279,10 +281,9 @@ export const useVideoCall = (currentUserId: string) => {
   const rejectCall = async () => {
     if (!activeCallId) return;
     try {
-      await rejectCallApi(activeCallId).unwrap();
+      wsService.rejectCall(activeCallId);
       cleanup();
     } catch (error) {
-      console.error("Failed to reject call:", error);
       cleanup();
     }
   };
@@ -290,10 +291,9 @@ export const useVideoCall = (currentUserId: string) => {
   const endCall = async () => {
     if (!activeCallId) return;
     try {
-      await endCallApi(activeCallId).unwrap();
+      wsService.endCall(activeCallId);
       cleanup();
     } catch (error) {
-      console.error("Failed to end call:", error);
       cleanup();
     }
   };
