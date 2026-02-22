@@ -1,7 +1,7 @@
 /**
  * MediaEngine handles encoding and decoding of media packets for the NATS media relay.
- * It uses the WebCodecs API (VideoEncoder, VideoDecoder) and a minimalist 
- * binary implementation of the videocall-rs Protobuf schema.
+ * It uses the WebCodecs API (VideoEncoder, VideoDecoder, AudioEncoder, AudioDecoder) 
+ * and a minimalist binary implementation of the videocall-rs Protobuf schema.
  */
 
 // Type definitions for WebCodecs if missing from TS lib
@@ -9,6 +9,7 @@ declare var AudioData: any;
 declare var VideoFrame: any;
 declare var VideoEncoder: any;
 declare var VideoDecoder: any;
+declare var AudioEncoder: any;
 declare var AudioDecoder: any;
 declare var EncodedVideoChunk: any;
 declare var EncodedAudioChunk: any;
@@ -188,8 +189,9 @@ export type OnRemoteFrameCallback = (userId: string, type: MediaType, frame: any
 
 export class MediaEngine {
   private videoEncoder: any = null;
-  private videoDecoder: Map<string, any> = new Map();
-  private audioDecoder: Map<string, any> = new Map();
+  private audioEncoder: any = null;
+  private videoDecoders: Map<string, any> = new Map();
+  private audioDecoders: Map<string, any> = new Map();
   private ws: WebSocket;
   private localUserId: string;
   private onRemoteFrame: OnRemoteFrameCallback;
@@ -202,12 +204,23 @@ export class MediaEngine {
   }
 
   async startEncoding(stream: MediaStream) {
+    // Start Video Encoding
     const videoTrack = stream.getVideoTracks()[0];
-    if (!videoTrack) return;
+    if (videoTrack) {
+      this.setupVideoEncoder(videoTrack);
+    }
 
-    const settings = videoTrack.getSettings();
-    const width = settings.width || 640;
-    const height = settings.height || 480;
+    // Start Audio Encoding
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      this.setupAudioEncoder(audioTrack);
+    }
+  }
+
+  private async setupVideoEncoder(track: MediaStreamTrack) {
+    const settings = track.getSettings();
+    const width = settings.width || 1280;
+    const height = settings.height || 720;
 
     this.videoEncoder = new VideoEncoder({
       output: (chunk: any, metadata: any) => this.handleEncodedChunk(chunk, metadata, MediaType.VIDEO),
@@ -218,11 +231,11 @@ export class MediaEngine {
       codec: 'vp8',
       width,
       height,
-      bitrate: 1_000_000,
+      bitrate: 1_200_000,
       latencyMode: 'realtime',
     });
 
-    const processor = new (window as any).MediaStreamTrackProcessor({ track: videoTrack });
+    const processor = new (window as any).MediaStreamTrackProcessor({ track });
     const reader = processor.readable.getReader();
 
     const encodeLoop = async () => {
@@ -241,6 +254,37 @@ export class MediaEngine {
     encodeLoop();
   }
 
+  private async setupAudioEncoder(track: MediaStreamTrack) {
+    this.audioEncoder = new AudioEncoder({
+      output: (chunk: any, metadata: any) => this.handleEncodedChunk(chunk, metadata, MediaType.AUDIO),
+      error: (e: any) => console.error("AudioEncoder error", e),
+    });
+
+    // Opus is widely supported and great for calls
+    this.audioEncoder.configure({
+      codec: 'opus',
+      sampleRate: 48000,
+      numberOfChannels: 2,
+      bitrate: 64000,
+    });
+
+    const processor = new (window as any).MediaStreamTrackProcessor({ track });
+    const reader = processor.readable.getReader();
+
+    const encodeLoop = async () => {
+      while (true) {
+        const { done, value: data } = await reader.read();
+        if (done) break;
+        if (this.audioEncoder && this.audioEncoder.state === 'configured') {
+          this.audioEncoder.encode(data);
+        }
+        data.close();
+      }
+    };
+
+    encodeLoop();
+  }
+
   private handleEncodedChunk(chunk: any, metadata: any, type: MediaType) {
     if (this.ws.readyState !== WebSocket.OPEN) return;
 
@@ -251,7 +295,7 @@ export class MediaEngine {
       mediaType: type,
       senderId: this.localUserId,
       data: data,
-      frameType: chunk.type,
+      frameType: chunk.type || 'delta',
       timestamp: chunk.timestamp,
     });
 
@@ -269,7 +313,7 @@ export class MediaEngine {
   }
 
   private decodeVideo(packet: MediaPacket) {
-    let decoder = this.videoDecoder.get(packet.senderId);
+    let decoder = this.videoDecoders.get(packet.senderId);
     if (!decoder) {
       decoder = new VideoDecoder({
         output: (frame: any) => this.onRemoteFrame(packet.senderId, MediaType.VIDEO, frame),
@@ -278,12 +322,12 @@ export class MediaEngine {
       decoder.configure({
         codec: 'vp8',
       });
-      this.videoDecoder.set(packet.senderId, decoder);
+      this.videoDecoders.set(packet.senderId, decoder);
     }
 
     if (decoder.state === 'configured') {
       const chunk = new EncodedVideoChunk({
-        type: (packet.frameType as any) || 'delta',
+        type: (packet.frameType as any) === 'key' ? 'key' : 'delta',
         timestamp: packet.timestamp,
         data: packet.data,
       });
@@ -292,12 +336,34 @@ export class MediaEngine {
   }
 
   private decodeAudio(packet: MediaPacket) {
-    // Audio decoding logic similarly...
+    let decoder = this.audioDecoders.get(packet.senderId);
+    if (!decoder) {
+      decoder = new AudioDecoder({
+        output: (data: any) => this.onRemoteFrame(packet.senderId, MediaType.AUDIO, data),
+        error: (e: any) => console.error("AudioDecoder error", e),
+      });
+      decoder.configure({
+        codec: 'opus',
+        sampleRate: 48000,
+        numberOfChannels: 2,
+      });
+      this.audioDecoders.set(packet.senderId, decoder);
+    }
+
+    if (decoder.state === 'configured') {
+      const chunk = new EncodedAudioChunk({
+        type: 'key', // Opus chunks are always independent
+        timestamp: packet.timestamp,
+        data: packet.data,
+      });
+      decoder.decode(chunk);
+    }
   }
 
   destroy() {
     this.videoEncoder?.close();
-    this.videoDecoder.forEach(d => d.close());
-    this.audioDecoder.forEach(d => d.close());
+    this.audioEncoder?.close();
+    this.videoDecoders.forEach(d => d.close());
+    this.audioDecoders.forEach(d => d.close());
   }
 }

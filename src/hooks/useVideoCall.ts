@@ -39,6 +39,7 @@ export const useVideoCall = (currentUserId: string) => {
   const mediaWs = useRef<WebSocket | null>(null);
   const mediaEngine = useRef<MediaEngine | null>(null);
   const remoteVideoWriter = useRef<any>(null);
+  const remoteAudioWriter = useRef<any>(null);
   
   const { toast } = useToast();
 
@@ -71,6 +72,7 @@ export const useVideoCall = (currentUserId: string) => {
       mediaEngine.current = null;
     }
     remoteVideoWriter.current = null;
+    remoteAudioWriter.current = null;
     
     updateStatus(CallStatus.IDLE);
     setActiveCallId(null);
@@ -95,6 +97,8 @@ export const useVideoCall = (currentUserId: string) => {
     const onFrame = (userId: string, type: MediaType, frame: any) => {
       if (type === MediaType.VIDEO && remoteVideoWriter.current) {
         remoteVideoWriter.current.write(frame);
+      } else if (type === MediaType.AUDIO && remoteAudioWriter.current) {
+        remoteAudioWriter.current.write(frame);
       } else {
         frame.close();
       }
@@ -106,11 +110,21 @@ export const useVideoCall = (currentUserId: string) => {
     socket.onopen = () => {
       console.log("Media relay connected");
       
-      // Create remote track generator
+      const tracks: MediaStreamTrack[] = [];
+
+      // Create remote track generators
       if ((window as any).MediaStreamTrackGenerator) {
+        // Video Generator
         const videoGenerator = new (window as any).MediaStreamTrackGenerator({ kind: 'video' });
         remoteVideoWriter.current = videoGenerator.writable.getWriter();
-        setRemoteStream(new MediaStream([videoGenerator]));
+        tracks.push(videoGenerator);
+
+        // Audio Generator
+        const audioGenerator = new (window as any).MediaStreamTrackGenerator({ kind: 'audio' });
+        remoteAudioWriter.current = audioGenerator.writable.getWriter();
+        tracks.push(audioGenerator);
+
+        setRemoteStream(new MediaStream(tracks));
       }
 
       // Start encoding local stream
@@ -174,35 +188,53 @@ export const useVideoCall = (currentUserId: string) => {
     };
   }, [currentUserId, activeCallId, connectToMediaRelay, cleanup, toast, updateStatus, localStream]);
 
+  // Helper for consistent media access across mobile and desktop
+  const getMediaStream = async (type: 'video' | 'voice'): Promise<MediaStream> => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const isInAppBrowser = /FBAN|FBAV|Instagram|LinkedIn|Messenger|Twitter/i.test(navigator.userAgent);
+    
+    if (isInAppBrowser) {
+      console.warn("User is in an In-App Browser. These often block camera/mic access.");
+    }
+
+    // Mobile browsers (especially Safari) are much more likely to show the prompt
+    // if the constraints are simple.
+    const constraints: MediaStreamConstraints = {
+      audio: true,
+      video: type === 'video' ? (isMobile ? {
+        facingMode: 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      } : {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'user'
+      }) : false
+    };
+
+    try {
+      console.log(`Requesting media (${type}) with constraints:`, constraints);
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      console.warn("Primary media request failed, retrying with absolute minimums...", err);
+      // Absolute fallback - removes all 'ideal' logic for maximum compatibility
+      return await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: type === 'video'
+      });
+    }
+  };
+
   const initiateCall = async (receiverId: string, receiverUsername: string, type: 'video' | 'voice' = 'video') => {
     try {
       let stream;
       try {
-        console.log(`Requesting media permissions for ${type} call...`);
-        const constraints = { 
-          video: type === 'video' ? { 
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 },
-            facingMode: 'user'
-          } : false, 
-          audio: true 
-        };
-        
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (err) {
-          console.warn("Primary constraints failed, retrying with minimal constraints:", err);
-          // Fallback to minimal constraints to at least trigger the permission prompt
-          stream = await navigator.mediaDevices.getUserMedia({ 
-            video: type === 'video', 
-            audio: true 
-          });
-        }
+        stream = await getMediaStream(type);
       } catch (mediaError) {
         console.error("Final media access error:", mediaError);
         toast({ 
-          title: `Unable to access camera/microphone`, 
-          description: "Please check your browser settings and ensure no other application is using your camera.", 
+          title: `Camera/Mic Blocked`, 
+          description: "Please tap the 'Aa' or 'Lock' icon in your browser address bar and ensure Camera/Mic access is allowed.", 
           variant: "destructive" 
         });
         return;
@@ -231,25 +263,7 @@ export const useVideoCall = (currentUserId: string) => {
     try {
       let stream;
       try {
-        console.log(`Requesting media permissions for group ${type} call...`);
-        const constraints = { 
-          video: type === 'video' ? { 
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 },
-            facingMode: 'user'
-          } : false, 
-          audio: true 
-        };
-        
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (err) {
-          console.warn("Group call constraints failed, retrying minimal:", err);
-          stream = await navigator.mediaDevices.getUserMedia({ 
-            video: type === 'video', 
-            audio: true 
-          });
-        }
+        stream = await getMediaStream(type);
       } catch (mediaError) {
         console.error("Media access error (group):", mediaError);
         toast({ 
@@ -295,25 +309,7 @@ export const useVideoCall = (currentUserId: string) => {
     try {
       let stream;
       try {
-        console.log(`Requesting media permissions for ${callType} call (accepting)...`);
-        const constraints = { 
-          video: callType === 'video' ? { 
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 },
-            facingMode: 'user'
-          } : false, 
-          audio: true 
-        };
-
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (err) {
-          console.warn("Accept call constraints failed, retrying minimal:", err);
-          stream = await navigator.mediaDevices.getUserMedia({ 
-            video: callType === 'video', 
-            audio: true 
-          });
-        }
+        stream = await getMediaStream(callType);
       } catch (mediaError) {
         console.error("Media access error (accept):", mediaError);
         toast({ 
