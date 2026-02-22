@@ -83,7 +83,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 export const baseApi = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Tasks", "Notifications", "Messages", "Users", "Groups"],
+  tagTypes: ["Tasks", "Notifications", "Messages", "Users", "Groups", "VideoCalls"],
   keepUnusedDataFor: 60, // Keep unused data for 60 seconds
   refetchOnMountOrArgChange: false, // Don't refetch on mount if data exists
   refetchOnFocus: false, // Don't refetch on window focus

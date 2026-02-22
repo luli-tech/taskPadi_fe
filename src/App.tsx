@@ -7,6 +7,8 @@ import { store } from "@/store";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useTheme } from "@/hooks/use-theme";
+import { VideoCallManager } from "@/components/VideoCallManager";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdminLogin from "./pages/AdminLogin";
@@ -20,9 +22,11 @@ import UserDetails from "./pages/UserDetails";
 import ChatUserDetails from "./pages/ChatUserDetails";
 import NotFound from "./pages/NotFound";
 
-const App = () => (
-  <Provider store={store}>
+const AppContent = () => {
+  useTheme(); // Initialize theme
+  return (
     <TooltipProvider>
+      <VideoCallManager />
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -64,6 +68,12 @@ const App = () => (
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
+  );
+};
+
+const App = () => (
+  <Provider store={store}>
+    <AppContent />
   </Provider>
 );
 

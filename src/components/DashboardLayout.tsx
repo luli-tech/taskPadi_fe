@@ -202,8 +202,17 @@ export function DashboardLayout() {
         </header>
         )}
 
-        <main className={cn("flex-1", shouldHideSidebarOnMobile ? "p-0 pb-20" : "p-6 pb-24 sm:pb-6")}>
-          <div className={cn(shouldHideSidebarOnMobile ? "w-full h-full" : "max-w-7xl mx-auto")}>
+        <main className={cn(
+          "flex-1 flex flex-col min-h-0 overflow-hidden",
+          shouldHideSidebarOnMobile ? "p-0 pb-20" : isChatPage ? "p-0" : "p-6 pb-24 sm:pb-6"
+        )}>
+          <div className={cn(
+            shouldHideSidebarOnMobile 
+              ? "w-full h-full overflow-hidden flex-1" 
+              : isChatPage 
+                ? "w-full h-full overflow-hidden flex-1"
+                : "max-w-7xl mx-auto w-full flex-1"
+          )}>
             <Outlet />
           </div>
         </main>

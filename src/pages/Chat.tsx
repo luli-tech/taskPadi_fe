@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
-import { useGetConversationsQuery, useGetConversationMessagesQuery, useSendMessageMutation, useUpdateMessageMutation, useDeleteMessageMutation, useCreateGroupMutation, useAddGroupMembersMutation } from "@/store/api/chatApi";
+import { useGetConversationsQuery, useGetConversationMessagesQuery, useSendMessageMutation, useUpdateMessageMutation, useDeleteMessageMutation, useCreateGroupMutation, useAddGroupMembersMutation, useGetGroupsQuery, useGetGroupMessagesQuery } from "@/store/api/chatApi";
 import { useGetAllUsersQuery } from "@/store/api/usersApi";
 import { useAppSelector } from "@/store/hooks";
 import { Card } from "@/components/ui/card";
@@ -12,16 +12,30 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Send, Users, UserPlus, Search, ArrowLeft, MoreVertical, Phone, Video, Edit, Trash2, X } from "lucide-react";
+import { MessageSquare, Send, Users, UserPlus, Search, ArrowLeft, MoreVertical, Phone, Video, Edit, Trash2, X, Moon, Sun } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
+import { wsService, WsMessageType } from "@/lib/websocket";
+import { useTheme } from "@/hooks/use-theme";
+import { useVideoCall } from "@/hooks/useVideoCall";
 
 export default function Chat() {
   const { user, isAdmin } = useAppSelector((state) => state.auth);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
+  
+  const { initiateCall, initiateGroupCall } = useVideoCall(user?.id || '');
+  
+  // Get current effective theme (resolves system theme)
+  const currentTheme = useMemo(() => {
+    if (theme === "system") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return theme;
+  }, [theme]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showChatWindow, setShowChatWindow] = useState(false);
   
@@ -55,6 +69,7 @@ export default function Chat() {
   // Initialize selectedUserId from URL params if present
   const chatParam = searchParams.get("chat");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(chatParam);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
@@ -63,6 +78,8 @@ export default function Chat() {
   
   const [createGroup, { isLoading: isCreatingGroup }] = useCreateGroupMutation();
   const [addGroupMembers] = useAddGroupMembersMutation();
+
+  const { data: groups = [], isLoading: groupsLoading } = useGetGroupsQuery();
 
   // Sync showChatWindow with selectedUserId on mobile
   useEffect(() => {
@@ -82,8 +99,24 @@ export default function Chat() {
   }, [conversations]);
 
   const userList = useMemo(() => {
+    const list: any[] = [];
+    
+    // Add groups first
+    groups.forEach(group => {
+      list.push({
+        id: group.id,
+        isGroup: true,
+        username: group.name,
+        avatar_url: group.avatar_url || undefined,
+        last_message: "Group chat",
+        unread_count: 0,
+        hasConversation: true,
+      });
+    });
+
     const conversationUsers = conversations.map(conv => ({
       id: conv.user_id,
+      isGroup: false,
       username: conv.username,
       avatar_url: conv.avatar_url || undefined,
       email: '',
@@ -94,12 +127,15 @@ export default function Chat() {
       unread_count: conv.unread_count,
     }));
     
+    list.push(...conversationUsers);
+
     if (allUsers.length > 0) {
       const conversationUserIds = new Set(conversations.map(c => c.user_id));
       const additionalUsers = allUsers
         .filter(u => u.id !== user?.id && !conversationUserIds.has(u.id))
         .map(u => ({
           id: u.id,
+          isGroup: false,
           username: u.username,
           avatar_url: u.avatar_url,
           email: u.email,
@@ -110,22 +146,34 @@ export default function Chat() {
           unread_count: 0,
         }));
       
-      return [...conversationUsers, ...additionalUsers];
+      list.push(...additionalUsers);
     }
     
-    return conversationUsers;
-  }, [conversations, allUsers, user?.id]);
+    return list;
+  }, [conversations, allUsers, user?.id, groups]);
 
   const filteredUserList = useMemo(() => {
     if (!chatListSearch.trim()) return userList;
     const query = chatListSearch.toLowerCase();
     return userList.filter(u => 
       u.username.toLowerCase().includes(query) || 
-      u.email.toLowerCase().includes(query)
+      (u.email && u.email.toLowerCase().includes(query))
     );
   }, [userList, chatListSearch]);
 
   const selectedUserInfo = useMemo(() => {
+    if (selectedGroupId) {
+      const group = groups.find(g => g.id === selectedGroupId);
+      if (group) {
+        return {
+          user_id: group.id,
+          username: group.name,
+          avatar_url: group.avatar_url,
+          isGroup: true,
+        };
+      }
+    }
+
     if (!selectedUserId) return null;
     
     const conv = conversationsMap.get(selectedUserId);
@@ -137,6 +185,7 @@ export default function Chat() {
         last_message: conv.last_message,
         last_message_time: conv.last_message_time,
         unread_count: conv.unread_count,
+        isGroup: false,
       };
     }
     
@@ -149,30 +198,39 @@ export default function Chat() {
         last_message: undefined,
         last_message_time: undefined,
         unread_count: 0,
+        isGroup: false,
       };
     }
     
     return null;
-  }, [selectedUserId, conversationsMap, allUsers]);
+  }, [selectedUserId, selectedGroupId, conversationsMap, allUsers, groups]);
 
 
-  const handleUserSelect = useCallback((userId: string) => {
-    setSelectedUserId(userId);
+  const handleUserSelect = useCallback((userId: string, isGroup = false) => {
+    if (isGroup) {
+      setSelectedGroupId(userId);
+      setSelectedUserId(null);
+    } else {
+      setSelectedUserId(userId);
+      setSelectedGroupId(null);
+    }
+    
     if (isMobile) {
       setShowChatWindow(true);
       // Update URL to indicate we're in a chat conversation
-      setSearchParams({ chat: userId });
+      setSearchParams(isGroup ? { group: userId } : { chat: userId });
     }
   }, [isMobile, setSearchParams]);
 
   const handleBackToList = useCallback(() => {
     setShowChatWindow(false);
     setSelectedUserId(null);
+    setSelectedGroupId(null);
     // Clear URL params to indicate we're back to chat list
     setSearchParams({});
   }, [setSearchParams]);
 
-  const { data: messagesData, isLoading: messagesLoading } = useGetConversationMessagesQuery(
+  const { data: convMessagesData, isLoading: convMessagesLoading } = useGetConversationMessagesQuery(
     { userId: selectedUserId!, params: { page: 1, limit: 100 } },
     { 
       skip: !selectedUserId,
@@ -180,12 +238,23 @@ export default function Chat() {
     }
   );
 
+  const { data: groupMessagesData, isLoading: groupMessagesLoading } = useGetGroupMessagesQuery(
+    { groupId: selectedGroupId!, params: { page: 1, limit: 100 } },
+    { 
+      skip: !selectedGroupId,
+      pollingInterval: selectedGroupId ? 5000 : 0,
+    }
+  );
+
+  const messagesLoading = convMessagesLoading || groupMessagesLoading;
+  const rawMessages = selectedGroupId ? groupMessagesData : convMessagesData;
+
   const messages = useMemo(() => {
-    if (!messagesData) return [];
-    if (Array.isArray(messagesData)) return messagesData;
-    if ('data' in messagesData) return messagesData.data;
+    if (!rawMessages) return [];
+    if (Array.isArray(rawMessages)) return rawMessages;
+    if ('data' in rawMessages) return rawMessages.data;
     return [];
-  }, [messagesData]);
+  }, [rawMessages]);
 
   // Reverse messages to display oldest → newest
   const orderedMessages = useMemo(() => {
@@ -200,9 +269,12 @@ export default function Chat() {
   const [editingMessageContent, setEditingMessageContent] = useState("");
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageMenuPosition, setMessageMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
 
   // Scroll to bottom when messages change or user changes
   useEffect(() => {
@@ -211,12 +283,109 @@ export default function Chat() {
     }
   }, [orderedMessages, selectedUserId]);
 
+  // WebSocket setup for typing indicators
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token || !user) return;
+
+    // Connect WebSocket
+    wsService.connect(token);
+
+    // Subscribe to typing events
+    const unsubscribeTyping = wsService.subscribe(WsMessageType.TypingIndicator, (data: { user_id: string; conversation_with: string; is_typing: boolean }) => {
+      // Only show typing indicator if it's for the current conversation
+      if (data.conversation_with === user.id && selectedUserId === data.user_id) {
+        if (data.is_typing) {
+          setTypingUsers(prev => new Set(prev).add(data.user_id));
+        } else {
+          setTypingUsers(prev => {
+            const next = new Set(prev);
+            next.delete(data.user_id);
+            return next;
+          });
+        }
+      }
+    });
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribeTyping();
+    };
+  }, [user, selectedUserId]);
+
+  // Send typing indicator when user types
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessageInput(value);
+
+    if (!selectedUserId || !user) return;
+
+    const now = Date.now();
+    // Send typing event immediately on first keystroke
+    if (value.trim().length > 0 && now - lastTypingSentRef.current > 1000) {
+      wsService.send("typing_indicator", {
+        conversation_with: selectedUserId,
+        is_typing: true,
+      });
+      lastTypingSentRef.current = now;
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Stop typing indicator after 3 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      if (selectedUserId) {
+        wsService.send("typing_indicator", {
+          conversation_with: selectedUserId,
+          is_typing: false,
+        });
+      }
+    }, 3000);
+  }, [selectedUserId, user]);
+
+  // Stop typing when message is sent
+  useEffect(() => {
+    if (!messageInput.trim() && selectedUserId) {
+      wsService.send("typing_indicator", {
+        conversation_with: selectedUserId,
+        is_typing: false,
+      });
+    }
+  }, [messageInput, selectedUserId]);
+
+  // Clear typing indicator when conversation changes
+  useEffect(() => {
+    setTypingUsers(new Set());
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+  }, [selectedUserId]);
+
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || !selectedUserId) return;
+    if (!messageInput.trim() || (!selectedUserId && !selectedGroupId)) return;
 
     try {
-      await sendMessage({ receiver_id: selectedUserId, content: messageInput }).unwrap();
+      // Stop typing indicator
+      if (selectedUserId) {
+        wsService.send("typing", {
+          receiver_id: selectedUserId,
+          is_typing: false,
+        });
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      await sendMessage({ 
+        receiver_id: selectedUserId || undefined,
+        group_id: selectedGroupId || undefined,
+        content: messageInput 
+      }).unwrap();
+      
       setMessageInput("");
       // Scroll to bottom after sending message
       if (messagesContainerRef.current) {
@@ -225,7 +394,7 @@ export default function Chat() {
     } catch (error) {
       toast({ title: "Failed to send message", variant: "destructive" });
     }
-  }, [messageInput, selectedUserId, sendMessage]);
+  }, [messageInput, selectedUserId, selectedGroupId, sendMessage]);
 
   const handleLongPress = useCallback((e: React.TouchEvent | React.MouseEvent, messageId: string, isOwn: boolean) => {
     if (!isOwn) return; // Only allow long press on own messages
@@ -405,8 +574,8 @@ export default function Chat() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className={cn(
-        "h-[calc(100vh-180px)] flex",
-        isMobile && "h-[calc(100vh-80px)]"
+        "flex overflow-hidden",
+        isMobile ? "fixed inset-0" : "h-full w-full"
       )}
     >
       {/* Chat List - WhatsApp style */}
@@ -419,24 +588,44 @@ export default function Chat() {
             exit={{ x: isMobile ? -100 : 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              "flex flex-col bg-[#f0f2f5]",
-              isMobile ? "w-full absolute inset-0 z-10" : "w-96 border-r border-border"
+              "flex flex-col",
+              "bg-[#f0f2f5] dark:bg-[#0b141a]",
+              isMobile 
+                ? "w-full absolute inset-0 z-10" 
+                : "w-80 xl:w-96 border-r border-border dark:border-[#2a3942] shrink-0"
             )}
           >
             {/* Chat List Header */}
-            <div className="bg-[#008069] text-white shadow-md">
+            <div className="bg-[#008069] dark:bg-[#202c33] text-white shadow-md">
               <div className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <h2 className={cn("font-semibold", isMobile ? "text-lg" : "text-xl")}>Chats</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsCreateGroupOpen(true)}
-                    className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                    title="Create group"
-                  >
-                    <UserPlus className="h-5 w-5" />
-                  </Button>
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {/* Dark Mode Toggle Button */}
+                    <button
+                      onClick={() => {
+                        setTheme(currentTheme === "dark" ? "light" : "dark");
+                      }}
+                      className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                      title={currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                      aria-label={currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                    >
+                      {currentTheme === "dark" ? (
+                        <Sun className="h-5 w-5 flex-shrink-0" />
+                      ) : (
+                        <Moon className="h-5 w-5 flex-shrink-0" />
+                      )}
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsCreateGroupOpen(true)}
+                      className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
+                      title="Create group"
+                    >
+                      <UserPlus className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
                 
                 {/* Search Bar */}
@@ -458,7 +647,7 @@ export default function Chat() {
             </div>
 
             {/* Chat List Items */}
-            <ScrollArea className="flex-1 bg-white">
+            <ScrollArea className="flex-1 bg-white dark:bg-[#111b21]">
               {conversationsLoading || usersLoading ? (
                 <div className="flex items-center justify-center h-full min-h-[200px]">
                   <div className="text-center text-muted-foreground">
@@ -469,8 +658,8 @@ export default function Chat() {
               ) : filteredUserList.length === 0 ? (
                 <div className="flex items-center justify-center h-full min-h-[200px] px-4">
                   <div className="text-center text-muted-foreground max-w-xs">
-                    <div className="bg-[#f0f2f5] rounded-full p-4 w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                      <Users className="h-8 w-8 text-[#008069] opacity-50" />
+                    <div className="bg-[#f0f2f5] dark:bg-[#202c33] rounded-full p-4 w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                      <Users className="h-8 w-8 text-[#008069] dark:text-[#00a884] opacity-50" />
                     </div>
                     <p className={cn("font-medium mb-1", isMobile ? "text-sm" : "text-base")}>
                       {chatListSearch ? "No results found" : "No chats yet"}
@@ -485,18 +674,17 @@ export default function Chat() {
               ) : (
                 <div>
                   {filteredUserList.map((chatUser) => {
-                    const isSelected = selectedUserId === chatUser.id;
                     return (
                       <motion.button
                         key={chatUser.id}
-                        onClick={() => handleUserSelect(chatUser.id)}
+                        onClick={() => handleUserSelect(chatUser.id, chatUser.isGroup)}
                         whileHover={{ backgroundColor: "#f5f6f6" }}
                         whileTap={{ scale: 0.98 }}
                         className={cn(
                           "w-full p-3 sm:p-4 flex items-center gap-3",
-                          "hover:bg-[#f5f6f6] active:bg-[#f0f2f5] transition-colors",
-                          "border-b border-[#f0f2f5]",
-                          isSelected && "bg-[#f0f2f5]"
+                          "hover:bg-[#f5f6f6] dark:hover:bg-[#202c33] active:bg-[#f0f2f5] dark:active:bg-[#182229] transition-colors",
+                          "border-b border-[#f0f2f5] dark:border-[#2a3942]",
+                          (selectedUserId === chatUser.id || selectedGroupId === chatUser.id) && "bg-[#f0f2f5] dark:bg-[#202c33]"
                         )}
                       >
                         <Avatar className={cn(
@@ -504,7 +692,10 @@ export default function Chat() {
                           isMobile ? "h-12 w-12" : "h-14 w-14"
                         )}>
                           <AvatarImage src={chatUser.avatar_url} />
-                          <AvatarFallback className="bg-[#25d366] text-white font-semibold">
+                          <AvatarFallback className={cn(
+                            "text-white font-semibold",
+                            chatUser.isGroup ? "bg-[#00a884]" : "bg-[#25d366]"
+                          )}>
                             {chatUser.username.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
@@ -512,9 +703,13 @@ export default function Chat() {
                           <div className="flex items-center justify-between mb-1 gap-2">
                             <p className={cn(
                               "font-medium truncate",
+                              "text-[#111b21] dark:text-[#e9edef]",
                               isMobile ? "text-sm" : "text-[15px]"
                             )}>
                               {chatUser.username}
+                              {chatUser.isGroup && (
+                                <span className="ml-2 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">Group</span>
+                              )}
                             </p>
                             {chatUser.hasConversation && chatUser.last_message_time && (
                               <span className={cn(
@@ -567,7 +762,7 @@ export default function Chat() {
 
       {/* Chat Window - WhatsApp style */}
       <AnimatePresence mode="wait">
-        {selectedUserId && (isMobile ? showChatWindow : true) && (
+        {(selectedUserId || selectedGroupId) && (isMobile ? showChatWindow : true) && (
           <motion.div
             key="chat-window"
             initial={{ x: isMobile ? 100 : 0, opacity: 0 }}
@@ -575,13 +770,14 @@ export default function Chat() {
             exit={{ x: isMobile ? 100 : 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              "flex flex-col flex-1",
-              "bg-[#efeae2] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiPjxwYXRoIGQ9Ik0wIDBoMTAwdjEwMEgweiIgZmlsbD0iI2VmZWFlMiIvPjxwYXRoIGQ9Ik0yNiAyNmM0IDQuMjkgOSA4LjU4IDE0IDEyLjg3cy05IDguNTgtMTQgMTIuODdsLTE0LTE0YzAtNC4yOSAwLTguNTggMC0xMi44N3MxMC05LjE2IDE0LTEyLjg3eiIgZmlsbD0iI2YwZjJmNSIgZmlsbC1vcGFjaXR5PSIwLjAzIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')]",
+              "flex flex-col h-full",
+              "bg-[#efeae2] dark:bg-[#0b141a]",
+              "bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiPjxwYXRoIGQ9Ik0wIDBoMTAwdjEwMEgweiIgZmlsbD0iI2VmZWFlMiIvPjxwYXRoIGQ9Ik0yNiAyNmM0IDQuMjkgOSA4LjU4IDE0IDEyLjg3cy05IDguNTgtMTQgMTIuODdsLTE0LTE0YzAtNC4yOSAwLTguNTggMC0xMi44N3MxMC05LjE2IDE0LTEyLjg3eiIgZmlsbD0iI2YwZjJmNSIgZmlsbC1vcGFjaXR5PSIwLjAzIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')] dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiPjxwYXRoIGQ9Ik0wIDBoMTAwdjEwMEgweiIgZmlsbD0iIzBiMTQxYSIvPjxwYXRoIGQ9Ik0yNiAyNmM0IDQuMjkgOSA4LjU4IDE0IDEyLjg3cy05IDguNTgtMTQgMTIuODdsLTE0LTE0YzAtNC4yOSAwLTguNTggMC0xMi44N3MxMC05LjE2IDE0LTEyLjg3eiIgZmlsbD0iIzIwMmMzMyIgZmlsbC1vcGFjaXR5PSIwLjAzIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')]",
               isMobile && "w-full absolute inset-0 z-20"
             )}
           >
-            {/* Chat Header */}
-            <div className="bg-[#008069] text-white shadow-md flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 z-10 relative">
+            {/* Chat Header - Fixed at top */}
+            <div className="bg-[#008069] dark:bg-[#202c33] text-white shadow-md flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 z-10 relative shrink-0">
               {isMobile && (
                 <Button
                   variant="ghost"
@@ -598,7 +794,10 @@ export default function Chat() {
               >
                 <Avatar className="h-10 w-10 sm:h-11 sm:w-11 shrink-0">
                   <AvatarImage src={selectedUserInfo?.avatar_url} />
-                  <AvatarFallback className="bg-white text-[#008069] font-semibold">
+                  <AvatarFallback className={cn(
+                    "text-white font-semibold",
+                    selectedUserInfo?.isGroup ? "bg-[#00a884]" : "bg-[#25d366]"
+                  )}>
                     {selectedUserInfo?.username?.charAt(0).toUpperCase() || "U"}
                   </AvatarFallback>
                 </Avatar>
@@ -607,32 +806,75 @@ export default function Chat() {
                     {selectedUserInfo?.username || "User"}
                   </h3>
                   <p className="text-xs text-white/80 truncate">
-                    {isMobile ? "Tap for info" : "Click here for contact info"}
+                    {selectedUserInfo?.isGroup ? "Group Chat" : isMobile ? "Tap for info" : "Click here for contact info"}
                   </p>
                 </div>
               </button>
               <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                  title="Video call"
+                {/* Dark Mode Toggle Button */}
+                <button
+                  onClick={() => {
+                    setTheme(currentTheme === "dark" ? "light" : "dark");
+                  }}
+                  className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                  title={currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  aria-label={currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                 >
-                  <Video className="h-5 w-5" />
-                </Button>
+                  {currentTheme === "dark" ? (
+                    <Sun className="h-5 w-5 flex-shrink-0" />
+                  ) : (
+                    <Moon className="h-5 w-5 flex-shrink-0" />
+                  )}
+                </button>
+                {!selectedUserInfo?.isGroup && (
+                  <>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
+                      onClick={() => selectedUserInfo && initiateCall(selectedUserInfo.user_id, selectedUserInfo.username)}
+                      title="Video call"
+                    >
+                      <Video className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
+                      onClick={() => selectedUserInfo && initiateCall(selectedUserInfo.user_id, selectedUserInfo.username, 'voice')}
+                      title="Voice call"
+                    >
+                      <Phone className="h-5 w-5" />
+                    </Button>
+                  </>
+                )}
+                {selectedUserInfo?.isGroup && (
+                  <>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
+                      onClick={() => selectedUserInfo && initiateGroupCall(selectedUserInfo.user_id, selectedUserInfo.username)}
+                      title="Group video call"
+                    >
+                      <Video className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
+                      onClick={() => selectedUserInfo && initiateGroupCall(selectedUserInfo.user_id, selectedUserInfo.username, 'voice')}
+                      title="Group voice call"
+                    >
+                      <Phone className="h-5 w-5" />
+                    </Button>
+                  </>
+                )}
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                  title="Voice call"
-                >
-                  <Phone className="h-5 w-5" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                  onClick={() => selectedUserId && navigate(`/chat/users/${selectedUserId}`)}
+                  onClick={() => selectedUserInfo && !selectedUserInfo.isGroup && navigate(`/chat/users/${selectedUserInfo.user_id}`)}
                   title="More options"
                 >
                   <MoreVertical className="h-5 w-5" />
@@ -640,12 +882,13 @@ export default function Chat() {
               </div>
             </div>
 
-            {/* Messages Area */}
+            {/* Messages Area - Scrollable */}
             <div 
               ref={messagesContainerRef}
-              className={cn(
-                "flex-1 overflow-y-auto"
-              )}
+              className="flex-1 overflow-y-auto min-h-0"
+              style={{ 
+                scrollBehavior: 'smooth'
+              }}
             >
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
@@ -657,11 +900,11 @@ export default function Chat() {
               ) : orderedMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center text-muted-foreground max-w-xs px-4">
-                    <div className="bg-white/50 rounded-full p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                      <MessageSquare className="h-10 w-10 text-[#008069] opacity-50" />
+                    <div className="bg-white/50 dark:bg-[#202c33]/50 rounded-full p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                      <MessageSquare className="h-10 w-10 text-[#008069] dark:text-[#00a884] opacity-50" />
                     </div>
-                    <p className="text-base font-medium mb-1">No messages yet</p>
-                    <p className="text-xs">Send a message to start the conversation</p>
+                    <p className="text-base font-medium mb-1 text-[#111b21] dark:text-[#e9edef]">No messages yet</p>
+                    <p className="text-xs text-[#667781] dark:text-[#8696a0]">Send a message to start the conversation</p>
                   </div>
                 </div>
               ) : (
@@ -700,9 +943,9 @@ export default function Chat() {
                               "h-6 w-6 shrink-0",
                               showAvatar ? "opacity-100" : "opacity-0"
                             )}>
-                              <AvatarImage src={selectedUserInfo?.avatar_url} />
-                              <AvatarFallback className="bg-[#008069] text-white text-xs">
-                                {selectedUserInfo?.username?.charAt(0).toUpperCase() || "U"}
+                              <AvatarImage src={msg.image_url || undefined} /> {/* This would ideally be sender avatar */}
+                              <AvatarFallback className="bg-[#008069] text-white text-[10px]">
+                                {msg.sender_id.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                           )}
@@ -768,6 +1011,7 @@ export default function Chat() {
                             ) : (
                               <p className={cn(
                                 "break-words whitespace-pre-wrap",
+                                "text-[#111b21] dark:text-[#e9edef]",
                                 isMobile ? "text-sm" : "text-[15px]",
                                 "leading-relaxed"
                               )}>
@@ -786,7 +1030,7 @@ export default function Chat() {
                               isOwn ? "justify-end" : "justify-start"
                             )}>
                               <span className={cn(
-                                "text-[#667781]",
+                                "text-[#667781] dark:text-[#8696a0]",
                                 isMobile ? "text-[10px]" : "text-[11px]"
                               )}>
                                 {new Date(msg.created_at).toLocaleTimeString([], { 
@@ -813,8 +1057,34 @@ export default function Chat() {
                         </div>
                       </div>
                     );
-                  })}
+                  })} 
                   <div ref={messagesEndRef} />
+                  
+                  {/* Typing Indicator */}
+                  {typingUsers.size > 0 && selectedUserId && (
+                    <div className="px-3 sm:px-4 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarImage src={selectedUserInfo?.avatar_url} />
+                          <AvatarFallback className="bg-[#008069] text-white text-xs">
+                            {selectedUserInfo?.username?.charAt(0).toUpperCase() || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="bg-white rounded-lg rounded-tl-sm px-4 py-2 shadow-sm">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[#667781] text-xs">
+                              {selectedUserInfo?.username || "Someone"} is typing
+                            </span>
+                            <div className="flex items-center gap-0.5 ml-1">
+                              <span className="w-1.5 h-1.5 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                              <span className="w-1.5 h-1.5 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                              <span className="w-1.5 h-1.5 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -856,51 +1126,52 @@ export default function Chat() {
               )}
             </AnimatePresence>
 
-            {/* Message Input - WhatsApp style */}
-            <form 
-              onSubmit={handleSendMessage} 
-              className={cn(
-                "px-3 sm:px-4 py-2 sm:py-3",
-                isMobile && "pb-4",
-                "relative z-10"
-              )}
-            >
-              <div className="flex items-end gap-2">
-                <div className="flex-1 bg-white rounded-full px-4 sm:px-5 py-2.5 sm:py-3 flex items-center gap-2 shadow-sm border border-[#e4e6eb]">
-                  <Input
-                    placeholder="Type a message"
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    disabled={sending}
+            {/* Message Input - Fixed at bottom */}
+            <div className="shrink-0">
+              <form 
+                onSubmit={handleSendMessage} 
+                className={cn(
+                  "px-3 sm:px-4 py-2 sm:py-3",
+                  isMobile && "pb-4"
+                )}
+              >
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 bg-white dark:bg-[#2a3942] rounded-full px-4 sm:px-5 py-2.5 sm:py-3 flex items-center gap-2 shadow-sm border border-[#e4e6eb] dark:border-[#2a3942]">
+                    <Input
+                      placeholder="Type a message"
+                      value={messageInput}
+                      onChange={handleInputChange}
+                      disabled={sending}
+                      className={cn(
+                        "border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent",
+                        "placeholder:text-muted-foreground",
+                        isMobile ? "text-sm" : "text-[15px]"
+                      )}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={sending || !messageInput.trim()}
                     className={cn(
-                      "border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent",
-                      "placeholder:text-muted-foreground",
-                      isMobile ? "text-sm" : "text-[15px]"
+                      "rounded-full p-0 bg-[#25d366] hover:bg-[#20ba5a] text-white",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                      "transition-all duration-200",
+                      "shadow-md hover:shadow-lg",
+                      isMobile ? "h-10 w-10" : "h-11 w-11"
                     )}
-                  />
+                  >
+                    <Send className={cn(isMobile ? "h-4 w-4" : "h-5 w-5")} />
+                  </Button>
                 </div>
-                <Button
-                  type="submit"
-                  disabled={sending || !messageInput.trim()}
-                  className={cn(
-                    "rounded-full p-0 bg-[#25d366] hover:bg-[#20ba5a] text-white",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    "transition-all duration-200",
-                    "shadow-md hover:shadow-lg",
-                    isMobile ? "h-10 w-10" : "h-11 w-11"
-                  )}
-                >
-                  <Send className={cn(isMobile ? "h-4 w-4" : "h-5 w-5")} />
-                </Button>
-              </div>
-            </form>
+              </form>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Show placeholder when no chat selected on desktop */}
-      {!isMobile && !selectedUserId && (
-        <div className="flex-1 flex items-center justify-center bg-[#efeae2]">
+      {!isMobile && !selectedUserId && !selectedGroupId && (
+        <div className="flex-1 flex items-center justify-center bg-[#efeae2] dark:bg-[#0b141a]">
           <div className="text-center text-muted-foreground">
             <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-30" />
             <p className="text-lg font-medium">Select a conversation</p>
