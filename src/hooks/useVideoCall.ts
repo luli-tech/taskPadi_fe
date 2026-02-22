@@ -170,10 +170,18 @@ export const useVideoCall = (currentUserId: string) => {
 
   const initiateCall = async (receiverId: string, receiverUsername: string, type: 'video' | 'voice' = 'video') => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: type === 'video', 
-        audio: true 
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: type === 'video', 
+          audio: true 
+        });
+      } catch (mediaError) {
+        console.error("Media devices error:", mediaError);
+        toast({ title: `Failed to access ${type === 'video' ? 'camera or ' : ''}microphone. Please check permissions.`, variant: "destructive" });
+        return;
+      }
+      
       setLocalStream(stream);
       setCallType(type);
       setIsGroupCall(false);
@@ -186,18 +194,27 @@ export const useVideoCall = (currentUserId: string) => {
       setRemoteUser({ id: receiverId, username: receiverUsername });
       setParticipants(call.participants || []);
       setStatus(CallStatus.OUTGOING);
-    } catch (error) {
-      console.error("Failed to initiate call:", error);
-      toast({ title: `Failed to access ${type === 'video' ? 'camera/' : ''}microphone`, variant: "destructive" });
+    } catch (error: any) {
+      console.error("Failed to initiate call API:", error);
+      const msg = error?.data?.error || error?.data?.message || "Failed to initiate call";
+      toast({ title: msg, variant: "destructive" });
     }
   };
 
   const initiateGroupCall = async (groupId: string, groupName: string, type: 'video' | 'voice' = 'video') => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: type === 'video', 
-        audio: true 
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: type === 'video', 
+          audio: true 
+        });
+      } catch (mediaError) {
+        console.error("Media devices error:", mediaError);
+        toast({ title: `Failed to access ${type === 'video' ? 'camera or ' : ''}microphone. Please check permissions.`, variant: "destructive" });
+        return;
+      }
+
       setLocalStream(stream);
       setCallType(type);
       setIsGroupCall(true);
@@ -211,9 +228,10 @@ export const useVideoCall = (currentUserId: string) => {
       setParticipants(call.participants || []);
       setStatus(CallStatus.OUTGOING);
       toast({ title: `Starting group ${type} call in ${groupName}...` });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to initiate group call:", error);
-      toast({ title: `Failed to start group call`, variant: "destructive" });
+      const msg = error?.data?.error || error?.data?.message || "Failed to start group call";
+      toast({ title: msg, variant: "destructive" });
     }
   };
 
@@ -235,17 +253,26 @@ export const useVideoCall = (currentUserId: string) => {
   const acceptCall = async () => {
     if (!activeCallId) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: callType === 'video', 
-        audio: true 
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: callType === 'video', 
+          audio: true 
+        });
+      } catch (mediaError) {
+        console.error("Media devices error:", mediaError);
+        toast({ title: `Failed to access ${callType === 'video' ? 'camera or ' : ''}microphone. Please check permissions.`, variant: "destructive" });
+        return;
+      }
+
       setLocalStream(stream);
       
       await acceptCallApi(activeCallId).unwrap();
       setStatus(CallStatus.ACTIVE);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to accept call:", error);
-      toast({ title: `Failed to access ${callType === 'video' ? 'camera/' : ''}microphone`, variant: "destructive" });
+      const msg = error?.data?.error || error?.data?.message || "Failed to accept call";
+      toast({ title: msg, variant: "destructive" });
     }
   };
 

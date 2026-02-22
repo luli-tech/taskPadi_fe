@@ -371,8 +371,8 @@ export default function Chat() {
     try {
       // Stop typing indicator
       if (selectedUserId) {
-        wsService.send("typing", {
-          receiver_id: selectedUserId,
+        wsService.send("typing_indicator", {
+          conversation_with: selectedUserId,
           is_typing: false,
         });
       }
