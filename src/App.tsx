@@ -9,6 +9,7 @@ import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useTheme } from "@/hooks/use-theme";
 import { VideoCallManager } from "@/components/VideoCallManager";
+import { VideoCallProvider } from "@/context/VideoCallContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdminLogin from "./pages/AdminLogin";
@@ -25,11 +26,12 @@ import NotFound from "./pages/NotFound";
 const AppContent = () => {
   useTheme(); // Initialize theme
   return (
-    <TooltipProvider>
-      <VideoCallManager />
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+    <VideoCallProvider>
+      <TooltipProvider>
+        <VideoCallManager />
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -67,7 +69,8 @@ const AppContent = () => {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </VideoCallProvider>
   );
 };
 

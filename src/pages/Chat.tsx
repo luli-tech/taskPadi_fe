@@ -19,7 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import { wsService, WsMessageType } from "@/lib/websocket";
 import { useTheme } from "@/hooks/use-theme";
-import { useVideoCall } from "@/hooks/useVideoCall";
+import { useVideoCallContext } from "@/context/VideoCallContext";
 
 export default function Chat() {
   const { user, isAdmin } = useAppSelector((state) => state.auth);
@@ -27,7 +27,7 @@ export default function Chat() {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   
-  const { initiateCall, initiateGroupCall } = useVideoCall(user?.id || '');
+  const { initiateCall, initiateGroupCall } = useVideoCallContext();
   
   // Get current effective theme (resolves system theme)
   const currentTheme = useMemo(() => {

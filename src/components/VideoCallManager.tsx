@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
-import { useVideoCall } from '@/hooks/useVideoCall';
+import { useVideoCallContext } from '@/context/VideoCallContext';
 import { useSocketManager } from '@/hooks/useSocketManager';
 import { useGetAllUsersQuery } from '@/store/api/usersApi';
 import { VideoCallOverlay } from './VideoCallOverlay';
@@ -23,7 +23,7 @@ export const VideoCallManager: React.FC = () => {
     rejectCall, 
     endCall,
     addParticipantToCall,
-  } = useVideoCall(user?.id || '');
+  } = useVideoCallContext();
 
   // Fetch all users so we can show the "add to call" list
   const { data: allUsersData } = useGetAllUsersQuery(undefined, { skip: !isAuthenticated });
