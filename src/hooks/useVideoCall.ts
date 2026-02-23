@@ -185,6 +185,7 @@ export const useVideoCall = (currentUserId: string) => {
       unsubAccepted();
       unsubRejected();
       unsubEnded();
+    };
   }, [currentUserId, activeCallId, connectToMediaRelay, cleanup, toast, updateStatus, localStream]);
 
   // Comprehensive check for browser capabilities required for this architecture
@@ -193,28 +194,18 @@ export const useVideoCall = (currentUserId: string) => {
     if (!isSecure) {
       toast({ 
         title: "Insecure Context", 
-        description: "Camera and Microphone access requires HTTPS. Please ensure you are using an https:// URL.", 
+        description: "Camera access requires HTTPS. Please use an https:// URL.", 
         variant: "destructive" 
       });
       return false;
     }
 
+    // On iOS, we MUST allow getUserMedia even if WebCodecs check is uncertain 
+    // otherwise the permission prompt is suppressed.
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast({ 
         title: "Unsupported Browser", 
-        description: "Your browser does not support camera/microphone access. If you are in an In-App Browser (WhatsApp, Instagram), please open this link in Safari or Chrome.", 
-        variant: "destructive" 
-      });
-      return false;
-    }
-
-    const hasWebCodecs = (window as any).VideoEncoder && (window as any).VideoDecoder;
-    const hasGenerators = (window as any).MediaStreamTrackGenerator;
-
-    if (!hasWebCodecs || !hasGenerators) {
-      toast({ 
-        title: "Browser Too Old", 
-        description: "Your browser doesn't support the required media technology (WebCodecs). Please try the latest version of Chrome, Edge, or Safari (iOS 15.4+).", 
+        description: "Your browser doesn't support camera access. Try Chrome or Safari.", 
         variant: "destructive" 
       });
       return false;
@@ -225,13 +216,14 @@ export const useVideoCall = (currentUserId: string) => {
 
   // Helper for consistent media access across mobile and desktop
   const getMediaStream = async (type: 'video' | 'voice'): Promise<MediaStream> => {
+    // Check basic security/availability but don't block on advanced features yet
     if (!checkCapabilities()) {
-      throw new Error("Capabilities check failed");
+      throw new Error("Basic capabilities check failed");
     }
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
-    // Absolute minimum constraints for mobile to force the prompt
+    // Simplest possible constraints for the highest success rate on iOS
     const constraints: MediaStreamConstraints = {
       audio: true,
       video: type === 'video' ? (isMobile ? true : {
@@ -243,7 +235,16 @@ export const useVideoCall = (currentUserId: string) => {
 
     try {
       console.log(`Requesting media (${type}) with constraints:`, constraints);
-      return await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // AFTER we have the stream, we can warn about limited playback support if necessary
+      const hasWebCodecs = (window as any).VideoEncoder && (window as any).VideoDecoder;
+      if (!hasWebCodecs) {
+        console.warn("WebCodecs not supported. Remote video may not render.");
+        // We don't toast here to avoid interrupting the call flow
+      }
+
+      return stream;
     } catch (err) {
       console.warn("Primary media request failed, retrying with raw true/true...", err);
       return await navigator.mediaDevices.getUserMedia({
