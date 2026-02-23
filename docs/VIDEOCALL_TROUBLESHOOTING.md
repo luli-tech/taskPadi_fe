@@ -59,3 +59,32 @@ This document summarizes the technical challenges encountered during the integra
 **Solution:**
 - Implemented **Instant UI Feedback**. The WhatsApp-style calling frame pops up the very millisecond you tap the button.
 - Permissions and Server notifications now happen in the background while the user sees the "Calling..." animation.
+
+## 8. Issue: Black Screen/No Video on iPhone (Safari)
+**Symptom:** The call connects, but the remote user's video is black on iPhone.
+**RCA:** iOS Safari has strict requirements for video codecs and doesn't always support modern stream generators used in Chrome. 
+**Solution:**
+- Switched video encoding from **VP8** to **H.264 Baseline**, which is hardware-accelerated and natively supported on all iPhones.
+- Implemented a **Canvas-based Rendering Fallback**: If Safari refuses to play the raw video stream, the app manually draws the video frames onto an HTML canvas.
+
+## 9. Issue: No Audio During Voice Calls (Safari/Mobile)
+**Symptom:** You can see the user, but cannot hear them during a voice call on iPhone.
+**RCA:** Safari often "mutes" or "suspend" audio from media streams if it doesn't detect a visible, playing video element.
+**Solution:**
+- Developed a **Web Audio API Fallback Engine**.
+- Added an **AudioContext scheduler** that plays the raw audio data through your phone's specialized audio hardware, bypassing the standard video player constraints.
+- Added **Force Play** commands that trigger on user interaction (clicking "Accept").
+
+## 10. Added Feature: Camera Flip (Front/Back)
+**Goal:** Allow users to show their surroundings during a call.
+**Implementation:**
+- Added a dedicated **Switch** button with a 180-degree rotation animation.
+- Implemented a **Cycling Logic** that detects all available cameras and hot-swaps the video track without dropping the call.
+- Set the **Front Camera** as the default for a more personal "Calling" experience.
+
+## 11. Issue: "Failed to switch microphone" (Bluetooth)
+**Symptom:** Error message appears when trying to switch to a Bluetooth headset mid-call.
+**RCA:** Mobile browsers sometimes lock the audio hardware. Requesting a new device while the old one is still active causes a collision.
+**Solution:**
+- Implemented **Soft-Release**: The old microphone is explicitly disabled and stopped *before* the new one is requested.
+- Added a **Recursive Fallback**: If the specific Bluetooth ID fails, the app tries a "generic" request which the phone's OS automatically routes to the active Bluetooth device.

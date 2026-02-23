@@ -152,6 +152,13 @@ export const useVideoCall = (currentUserId: string) => {
       
       // Schedule playback to avoid gaps
       const startTime = Math.max(ctx.currentTime, audioNextStartTime.current);
+      
+      // Lag protection: If the buffer is more than 300ms ahead, reset it to prevent compounding delay
+      if (audioNextStartTime.current > ctx.currentTime + 0.3) {
+        console.warn("Audio lag detected, resetting jitter buffer...");
+        audioNextStartTime.current = ctx.currentTime;
+      }
+
       source.start(startTime);
       audioNextStartTime.current = startTime + buffer.duration;
       
@@ -326,6 +333,16 @@ export const useVideoCall = (currentUserId: string) => {
     return true;
   }, [toast]);
   
+  // Helper to ensure AudioContext is active (must be called from a user interaction)
+  const resumeAudio = useCallback(async () => {
+    if (audioContextRef.current) {
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+        console.log("AudioContext resumed via interaction");
+      }
+    }
+  }, []);
+
   const enumerateDevices = useCallback(async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -517,6 +534,7 @@ export const useVideoCall = (currentUserId: string) => {
 
   const initiateCall = async (receiverId: string, receiverUsername: string, type: 'video' | 'voice' = 'video') => {
     // Instant UI feedback - prioritize showing the calling screen
+    await resumeAudio();
     setCallType(type);
     setRemoteUser({ id: receiverId, username: receiverUsername });
     setIsGroupCall(false);
@@ -557,6 +575,7 @@ export const useVideoCall = (currentUserId: string) => {
 
   const initiateGroupCall = async (groupId: string, groupName: string, type: 'video' | 'voice' = 'video') => {
     // Instant UI feedback
+    await resumeAudio();
     setCallType(type);
     setRemoteUser({ id: groupId, username: groupName });
     setIsGroupCall(true);
@@ -609,6 +628,7 @@ export const useVideoCall = (currentUserId: string) => {
   const acceptCall = async () => {
     if (!activeCallId || statusRef.current === CallStatus.ACTIVE) return;
     
+    await resumeAudio();
     try {
       let stream;
       try {
@@ -643,6 +663,9 @@ export const useVideoCall = (currentUserId: string) => {
       }
       
       updateStatus(CallStatus.ACTIVE);
+      
+      // Explicitly notify caller via WebSocket signaling
+      wsService.acceptCall(activeCallId);
     } catch (error: any) {
       const msg = error?.data?.error || error?.data?.message || "Failed to accept call";
       toast({ title: msg, variant: "destructive" });
