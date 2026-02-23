@@ -255,7 +255,14 @@ export const useVideoCall = (currentUserId: string) => {
   };
 
   const initiateCall = async (receiverId: string, receiverUsername: string, type: 'video' | 'voice' = 'video') => {
+    // Instant UI feedback - prioritize showing the calling screen
+    setCallType(type);
+    setRemoteUser({ id: receiverId, username: receiverUsername });
+    setIsGroupCall(false);
+    updateStatus(CallStatus.OUTGOING);
+
     try {
+      // Background: request media
       let stream;
       try {
         stream = await getMediaStream(type);
@@ -266,30 +273,36 @@ export const useVideoCall = (currentUserId: string) => {
           description: "Please tap the 'Aa' or 'Lock' icon in your browser address bar and ensure Camera/Mic access is allowed.", 
           variant: "destructive" 
         });
+        cleanup(); // Fallback to idle if media fails
         return;
       }
       
       setLocalStream(stream);
-      setCallType(type);
-      setIsGroupCall(false);
 
+      // Background: notify server
       const call = await initiateCallApi({ 
         receiver_id: receiverId,
         call_type: type
       }).unwrap();
       
       setActiveCallId(call.id);
-      setRemoteUser({ id: receiverId, username: receiverUsername });
       setParticipants(call.participants || []);
-      updateStatus(CallStatus.OUTGOING);
     } catch (error: any) {
       const msg = error?.data?.error || error?.data?.message || "Failed to initiate call";
       toast({ title: msg, variant: "destructive" });
+      cleanup(); // Fallback to idle if server call fails
     }
   };
 
   const initiateGroupCall = async (groupId: string, groupName: string, type: 'video' | 'voice' = 'video') => {
+    // Instant UI feedback
+    setCallType(type);
+    setRemoteUser({ id: groupId, username: groupName });
+    setIsGroupCall(true);
+    updateStatus(CallStatus.OUTGOING);
+
     try {
+      // Background: request media
       let stream;
       try {
         stream = await getMediaStream(type);
@@ -300,25 +313,24 @@ export const useVideoCall = (currentUserId: string) => {
           description: "Could not start media. Check your browser permissions.", 
           variant: "destructive" 
         });
+        cleanup();
         return;
       }
 
       setLocalStream(stream);
-      setCallType(type);
-      setIsGroupCall(true);
 
+      // Background: notify server
       const call = await initiateCallApi({ 
         group_id: groupId,
         call_type: type
       }).unwrap();
       
       setActiveCallId(call.id);
-      setRemoteUser({ id: groupId, username: groupName });
       setParticipants(call.participants || []);
-      updateStatus(CallStatus.OUTGOING);
     } catch (error: any) {
       const msg = error?.data?.error || error?.data?.message || "Failed to start group call";
       toast({ title: msg, variant: "destructive" });
+      cleanup();
     }
   };
 
@@ -365,21 +377,39 @@ export const useVideoCall = (currentUserId: string) => {
   };
 
   const rejectCall = async () => {
-    if (!activeCallId) return;
-    try {
-      wsService.rejectCall(activeCallId);
+    const callId = activeCallId;
+    if (!callId) {
       cleanup();
+      return;
+    }
+    
+    try {
+      // Signal via WebSocket
+      wsService.rejectCall(callId);
+      // Update backend state
+      await rejectCallApi(callId).unwrap();
     } catch (error) {
+      console.warn("Reject call API failed:", error);
+    } finally {
       cleanup();
     }
   };
 
   const endCall = async () => {
-    if (!activeCallId) return;
-    try {
-      wsService.endCall(activeCallId);
+    const callId = activeCallId;
+    if (!callId) {
       cleanup();
+      return;
+    }
+
+    try {
+      // Signal via WebSocket
+      wsService.endCall(callId);
+      // Update backend state
+      await endCallApi(callId).unwrap();
     } catch (error) {
+      console.warn("End call API failed:", error);
+    } finally {
       cleanup();
     }
   };
