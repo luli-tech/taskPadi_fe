@@ -26,6 +26,7 @@ interface VideoCallContextType {
   switchMicrophone: (deviceId: string) => Promise<void>;
   flipCamera: () => Promise<void>;
   setSelectedAudioOutput: (deviceId: string) => void;
+  remoteCanvasRef: React.RefObject<HTMLCanvasElement>;
 }
 
 const VideoCallContext = createContext<VideoCallContextType | undefined>(undefined);

@@ -45,6 +45,7 @@ interface VideoCallOverlayProps {
   onSwitchMicrophone?: (deviceId: string) => void;
   onFlipCamera?: () => void;
   onSwitchAudioOutput?: (deviceId: string) => void;
+  remoteCanvasRef?: React.RefObject<HTMLCanvasElement>;
 }
 
 export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
@@ -68,10 +69,14 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
   onSwitchMicrophone,
   onFlipCamera,
   onSwitchAudioOutput,
+  remoteCanvasRef: externalRemoteCanvasRef,
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const internalRemoteCanvasRef = useRef<HTMLCanvasElement>(null);
+  const remoteCanvasRef = externalRemoteCanvasRef || internalRemoteCanvasRef;
+
   const [showParticipants, setShowParticipants] = useState(false);
   const [searchUsers, setSearchUsers] = useState('');
   const [isMuted, setIsMuted] = useState(false);
@@ -102,16 +107,19 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(e => console.log("Local video play blocked:", e));
     }
   }, [localStream]);
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(e => console.log("Remote video play blocked:", e));
     }
     // Also set stream to the hidden audio element for voice calls
     if (remoteAudioRef.current && remoteStream) {
       remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(e => console.log("Remote audio play blocked:", e));
     }
   }, [remoteStream]);
 
@@ -253,14 +261,24 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
       >
         {/* Main Content */}
         <div className="relative flex-1 bg-black flex items-center justify-center group">
-          {isVideo && status === CallStatus.ACTIVE ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="w-full h-full object-cover"
-            />
-          ) : (
+          {isVideo && (
+            <div className={cn("w-full h-full", status !== CallStatus.ACTIVE && "hidden")}>
+              {/* Try Video element first (Generator support) */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className={cn("w-full h-full object-cover", !remoteStream && "hidden")}
+              />
+              {/* Fallback to Canvas (No Generator support, e.g. Safari) */}
+              <canvas
+                ref={remoteCanvasRef}
+                className={cn("w-full h-full object-cover", remoteStream && "hidden")}
+              />
+            </div>
+          )}
+          
+          {(!isVideo || status !== CallStatus.ACTIVE) && (
             <div className="flex flex-col items-center">
               <motion.div 
                 animate={status === CallStatus.ACTIVE ? { 

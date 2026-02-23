@@ -43,6 +43,9 @@ export const useVideoCall = (currentUserId: string) => {
   const activeCallIdRef = useRef<string | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const remoteCanvasRef = useRef<HTMLCanvasElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioNextStartTime = useRef<number>(0);
   const mediaWs = useRef<WebSocket | null>(null);
   const mediaEngine = useRef<MediaEngine | null>(null);
   const remoteVideoWriter = useRef<any>(null);
@@ -59,6 +62,19 @@ export const useVideoCall = (currentUserId: string) => {
   const updateStatus = useCallback((newStatus: CallStatus) => {
     setStatus(newStatus);
     statusRef.current = newStatus;
+
+    // Initialize/Resume AudioContext on user interaction
+    if (newStatus === CallStatus.INCOMING || newStatus === CallStatus.ACTIVE) {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
+          latencyHint: 'interactive',
+          sampleRate: 48000
+        });
+        audioNextStartTime.current = 0;
+      } else if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+    }
   }, []);
 
   const updateActiveCallId = useCallback((id: string | null) => {
@@ -111,6 +127,37 @@ export const useVideoCall = (currentUserId: string) => {
   const connectToMediaRelay = useCallback((path: string, currentLocalStream: MediaStream | null) => {
     if (mediaWs.current) mediaWs.current.close();
 
+    const playAudioData = (audioData: any) => {
+      if (!audioContextRef.current) {
+        audioData.close();
+        return;
+      }
+      
+      const ctx = audioContextRef.current;
+      const numberOfChannels = audioData.numberOfChannels;
+      const numberOfFrames = audioData.numberOfFrames;
+      const sampleRate = audioData.sampleRate;
+      
+      const buffer = ctx.createBuffer(numberOfChannels, numberOfFrames, sampleRate);
+      
+      for (let i = 0; i < numberOfChannels; i++) {
+        const channelData = new Float32Array(numberOfFrames);
+        audioData.copyTo(channelData, { planeIndex: i });
+        buffer.copyToChannel(channelData, i);
+      }
+      
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      
+      // Schedule playback to avoid gaps
+      const startTime = Math.max(ctx.currentTime, audioNextStartTime.current);
+      source.start(startTime);
+      audioNextStartTime.current = startTime + buffer.duration;
+      
+      audioData.close();
+    };
+
     const baseUrl = wsService.getUrl().replace('wss://', '').replace('ws://', '').split('/api/')[0];
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const fullUrl = `${protocol}//${baseUrl}${path}`;
@@ -122,10 +169,29 @@ export const useVideoCall = (currentUserId: string) => {
 
     // Initialize MediaEngine
     const onFrame = (userId: string, type: MediaType, frame: any) => {
-      if (type === MediaType.VIDEO && remoteVideoWriter.current) {
-        remoteVideoWriter.current.write(frame);
-      } else if (type === MediaType.AUDIO && remoteAudioWriter.current) {
-        remoteAudioWriter.current.write(frame);
+      if (type === MediaType.VIDEO) {
+        if (remoteVideoWriter.current) {
+          remoteVideoWriter.current.write(frame);
+        } else if (remoteCanvasRef.current) {
+          // Fallback: Render VideoFrame to Canvas
+          const canvas = remoteCanvasRef.current;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            canvas.width = frame.displayWidth;
+            canvas.height = frame.displayHeight;
+            ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+          }
+          frame.close();
+        } else {
+          frame.close();
+        }
+      } else if (type === MediaType.AUDIO) {
+        if (remoteAudioWriter.current) {
+          remoteAudioWriter.current.write(frame);
+        } else {
+          // Fallback: Play AudioData via Web Audio API
+          playAudioData(frame);
+        }
       } else {
         frame.close();
       }
@@ -293,62 +359,97 @@ export const useVideoCall = (currentUserId: string) => {
   }, [status, enumerateDevices]);
 
   const switchCamera = async (deviceId: string) => {
-    if (!localStream) return;
+    if (!localStreamRef.current) return;
+    if (selectedVideoInput === deviceId) return;
+
     try {
       console.log(`Switching camera to: ${deviceId}`);
+      
+      // 1. Explicitly stop only the video track first to release hardware
+      const oldTracks = localStreamRef.current.getVideoTracks();
+      oldTracks.forEach(t => t.stop());
+
+      // 2. Request the new camera
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { ideal: deviceId } },
         audio: false
       });
       
       const newTrack = newStream.getVideoTracks()[0];
-      const oldTrack = localStream.getVideoTracks()[0];
       
-      if (oldTrack) oldTrack.stop();
+      // 3. Reconstruct the stream
+      const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
+      const newLocalStream = new MediaStream([newTrack]);
+      if (currentAudioTrack) newLocalStream.addTrack(currentAudioTrack);
       
-      localStream.removeTrack(oldTrack);
-      localStream.addTrack(newTrack);
-      
-      // Force React update by creating a new stream wrapper
-      updateLocalStream(new MediaStream(localStream.getTracks()));
+      updateLocalStream(newLocalStream);
       setSelectedVideoInput(deviceId);
       
+      // 4. Update Engine
       if (mediaEngine.current) {
         await mediaEngine.current.replaceVideoTrack(newTrack);
       }
     } catch (err) {
       console.error("Error switching camera:", err);
       toast({ title: "Failed to switch camera", variant: "destructive" });
+      // Restore video if possible
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      if (localStreamRef.current) {
+        localStreamRef.current.addTrack(fallbackStream.getVideoTracks()[0]);
+        updateLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+      }
     }
   };
 
   const switchMicrophone = async (deviceId: string) => {
-    if (!localStream) return;
+    if (!localStreamRef.current) return;
+    if (selectedAudioInput === deviceId) return;
+
     try {
       console.log(`Switching microphone to: ${deviceId}`);
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: { ideal: deviceId } },
-        video: false
+      
+      // 1. Release the current audio hardware first (Critical for Mobile/BT)
+      const oldTracks = localStreamRef.current.getAudioTracks();
+      oldTracks.forEach(t => {
+        t.enabled = false;
+        t.stop();
       });
+
+      // 2. Request the new microphone
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: { ideal: deviceId } },
+          video: false
+        });
+      } catch (e) {
+        console.warn("Retrying with generic audio constraint...");
+        newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      }
       
       const newTrack = newStream.getAudioTracks()[0];
-      const oldTrack = localStream.getAudioTracks()[0];
       
-      if (oldTrack) oldTrack.stop();
+      // 3. Reconstruct the stream
+      const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
+      const newLocalStream = new MediaStream([newTrack]);
+      if (currentVideoTrack) newLocalStream.addTrack(currentVideoTrack);
       
-      localStream.removeTrack(oldTrack);
-      localStream.addTrack(newTrack);
-      
-      // Force React update
-      updateLocalStream(new MediaStream(localStream.getTracks()));
+      updateLocalStream(newLocalStream);
       setSelectedAudioInput(deviceId);
 
+      // 4. Update Engine
       if (mediaEngine.current) {
         await mediaEngine.current.replaceAudioTrack(newTrack);
       }
+      
+      toast({ title: "Microphone Switched" });
     } catch (err) {
       console.error("Error switching microphone:", err);
-      toast({ title: "Failed to switch microphone", variant: "destructive" });
+      toast({ 
+        title: "Microphone Swap Failed", 
+        description: "Please ensure your headset is connected and not being used by another app.",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -376,34 +477,41 @@ export const useVideoCall = (currentUserId: string) => {
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
-    // Simplest possible constraints for the highest success rate on iOS
+    // Stage 1: Balanced constraints
     const constraints: MediaStreamConstraints = {
       audio: true,
       video: type === 'video' ? {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: 'user' // Force front camera
+        facingMode: 'user',
+        width: isMobile ? { ideal: 640 } : { ideal: 1280 },
+        height: isMobile ? { ideal: 480 } : { ideal: 720 },
       } : false
     };
 
     try {
-      console.log(`Requesting media (${type}) with constraints:`, constraints);
+      console.log(`Requesting media (${type}) stage 1...`);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // AFTER we have the stream, we can warn about limited playback support if necessary
-      const hasWebCodecs = (window as any).VideoEncoder && (window as any).VideoDecoder;
-      if (!hasWebCodecs) {
-        console.warn("WebCodecs not supported. Remote video may not render.");
-        // We don't toast here to avoid interrupting the call flow
-      }
-
+      console.log("Stream obtained successfully:", {
+        id: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length
+      });
       return stream;
     } catch (err) {
-      console.warn("Primary media request failed, retrying with raw true/true...", err);
-      return await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: type === 'video' ? { facingMode: 'user' } : false
-      });
+      console.warn("Media stage 1 failed, trying stage 2 (raw user camera)...", err);
+      try {
+        // Stage 2: Most basic camera request
+        return await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: type === 'video' ? { facingMode: 'user' } : false
+        });
+      } catch (err2) {
+        console.warn("Media stage 2 failed, trying stage 3 (any camera)...", err2);
+        // Stage 3: Absolutely anything that works
+        return await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: type === 'video'
+        });
+      }
     }
   };
 
@@ -602,5 +710,6 @@ export const useVideoCall = (currentUserId: string) => {
     switchMicrophone,
     flipCamera,
     setSelectedAudioOutput,
+    remoteCanvasRef,
   };
 };

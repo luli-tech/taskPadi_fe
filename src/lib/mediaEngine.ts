@@ -228,11 +228,12 @@ export class MediaEngine {
     });
 
     this.videoEncoder.configure({
-      codec: 'vp8',
+      codec: 'avc1.42E01E', // H.264 Baseline - Highly compatible with Mobile/iOS
       width,
       height,
-      bitrate: 1_200_000,
+      bitrate: 1_000_000,
       latencyMode: 'realtime',
+      avc: { format: 'annexb' } // Annex B is preferred for relay streaming
     });
 
     const processor = new (window as any).MediaStreamTrackProcessor({ track });
@@ -338,7 +339,7 @@ export class MediaEngine {
         error: (e: any) => console.error("VideoDecoder error", e),
       });
       decoder.configure({
-        codec: 'vp8',
+        codec: 'avc1.42E01E',
       });
       this.videoDecoders.set(packet.senderId, decoder);
     }

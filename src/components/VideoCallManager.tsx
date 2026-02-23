@@ -31,6 +31,7 @@ export const VideoCallManager: React.FC = () => {
     switchMicrophone,
     flipCamera,
     setSelectedAudioOutput,
+    remoteCanvasRef,
   } = useVideoCallContext();
 
   // Fetch all users so we can show the "add to call" list
@@ -64,6 +65,7 @@ export const VideoCallManager: React.FC = () => {
       onSwitchMicrophone={switchMicrophone}
       onFlipCamera={flipCamera}
       onSwitchAudioOutput={setSelectedAudioOutput}
+      remoteCanvasRef={remoteCanvasRef}
     />
   );
 };
