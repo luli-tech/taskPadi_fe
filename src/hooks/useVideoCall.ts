@@ -149,32 +149,51 @@ export const useVideoCall = (currentUserId: string) => {
   // Handle incoming signaling messages from the main WebSocket
   useEffect(() => {
     const unsubInitiated = wsService.subscribe(WsMessageType.CallInitiated, (data) => {
-      if (data.receiver_id === currentUserId) {
-        setActiveCallId(data.call_id);
-        setCallType(data.call_type as 'video' | 'voice');
-        setRemoteUser({ id: data.caller_id, username: data.caller_username || 'User' });
+      // Handle both flat and nested payload structures
+      const payload = data.payload || data.content || data;
+      const receiverId = payload.receiver_id || payload.receiverId || payload.recipient_id;
+      const callerId = payload.caller_id || payload.callerId || payload.sender_id;
+      
+      console.log("Incoming call signal check:", { receiverId, currentUserId, payload });
+
+      if (String(receiverId) === String(currentUserId)) {
+        setActiveCallId(payload.call_id || payload.callId);
+        setCallType((payload.call_type || payload.callType) as 'video' | 'voice');
+        setRemoteUser({ 
+          id: callerId, 
+          username: payload.caller_username || payload.sender_username || 'User' 
+        });
         updateStatus(CallStatus.INCOMING);
       }
     });
 
     const unsubAccepted = wsService.subscribe(WsMessageType.CallAccepted, (data) => {
-      if (statusRef.current === CallStatus.OUTGOING && data.call_id === activeCallId) {
+      const payload = data.payload || data.content || data;
+      const callId = payload.call_id || payload.callId;
+
+      if (statusRef.current === CallStatus.OUTGOING && String(callId) === String(activeCallId)) {
         updateStatus(CallStatus.ACTIVE);
-        if (data.media_ws_path) {
-          connectToMediaRelay(data.media_ws_path, localStream);
+        if (payload.media_ws_path || payload.mediaWsPath) {
+          connectToMediaRelay(payload.media_ws_path || payload.mediaWsPath, localStream);
         }
       }
     });
 
     const unsubRejected = wsService.subscribe(WsMessageType.CallRejected, (data) => {
-      if (data.call_id === activeCallId) {
+      const payload = data.payload || data.content || data;
+      const callId = payload.call_id || payload.callId;
+
+      if (String(callId) === String(activeCallId)) {
         toast({ title: "Call Rejected", variant: "destructive" });
         cleanup();
       }
     });
 
     const unsubEnded = wsService.subscribe(WsMessageType.CallEnded, (data) => {
-      if (data.call_id === activeCallId) {
+      const payload = data.payload || data.content || data;
+      const callId = payload.call_id || payload.callId;
+
+      if (String(callId) === String(activeCallId)) {
         toast({ title: "Call Ended" });
         cleanup();
       }
