@@ -12,12 +12,20 @@ interface VideoCallContextType {
   remoteStream: MediaStream | null;
   participants: CallParticipant[];
   isGroupCall: boolean;
+  availableDevices: MediaDeviceInfo[];
+  selectedAudioInput: string;
+  selectedAudioOutput: string;
+  selectedVideoInput: string;
   initiateCall: (receiverId: string, receiverUsername: string, type?: 'video' | 'voice') => Promise<void>;
   initiateGroupCall: (groupId: string, groupName: string, type?: 'video' | 'voice') => Promise<void>;
   addParticipantToCall: (userId: string, username: string) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: () => Promise<void>;
   endCall: () => Promise<void>;
+  switchCamera: (deviceId: string) => Promise<void>;
+  switchMicrophone: (deviceId: string) => Promise<void>;
+  flipCamera: () => Promise<void>;
+  setSelectedAudioOutput: (deviceId: string) => void;
 }
 
 const VideoCallContext = createContext<VideoCallContextType | undefined>(undefined);

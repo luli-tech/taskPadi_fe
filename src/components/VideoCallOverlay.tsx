@@ -37,6 +37,14 @@ interface VideoCallOverlayProps {
   onEnd: () => void;
   onAddParticipant?: (userId: string, username: string) => void;
   availableUsers?: { id: string; username: string; avatar_url?: string }[];
+  availableDevices?: MediaDeviceInfo[];
+  selectedAudioInput?: string;
+  selectedAudioOutput?: string;
+  selectedVideoInput?: string;
+  onSwitchCamera?: (deviceId: string) => void;
+  onSwitchMicrophone?: (deviceId: string) => void;
+  onFlipCamera?: () => void;
+  onSwitchAudioOutput?: (deviceId: string) => void;
 }
 
 export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
@@ -52,14 +60,24 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
   onEnd,
   onAddParticipant,
   availableUsers = [],
+  availableDevices = [],
+  selectedAudioInput = '',
+  selectedAudioOutput = '',
+  selectedVideoInput = '',
+  onSwitchCamera,
+  onSwitchMicrophone,
+  onFlipCamera,
+  onSwitchAudioOutput,
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [showParticipants, setShowParticipants] = useState(false);
   const [searchUsers, setSearchUsers] = useState('');
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [duration, setDuration] = useState(0);
 
   // Timer for active call
@@ -91,7 +109,23 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
+    // Also set stream to the hidden audio element for voice calls
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+    }
   }, [remoteStream]);
+
+  // Handle switching audio output (speaker/bluetooth)
+  useEffect(() => {
+    // Apply to both elements for maximum compatibility
+    [remoteVideoRef.current, remoteAudioRef.current].forEach((element: any) => {
+      if (element && selectedAudioOutput && element.setSinkId) {
+        element.setSinkId(selectedAudioOutput)
+          .then(() => console.log(`Audio output switched to ${selectedAudioOutput}`))
+          .catch((err: any) => console.error("Error setting sink ID:", err));
+      }
+    });
+  }, [selectedAudioOutput]);
 
   const toggleMute = () => {
     if (localStream) {
@@ -363,19 +397,24 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
           <div className="flex flex-col items-center gap-2">
             <Button
               size="icon"
-              className="h-14 w-14 rounded-full bg-zinc-800 text-white hover:bg-zinc-700 border border-white/5"
+              className={cn(
+                "h-14 w-14 rounded-full transition-all border border-white/5",
+                showSettings ? "bg-primary text-white" : "bg-zinc-800 text-white hover:bg-zinc-700"
+              )}
+              onClick={() => setShowSettings(!showSettings)}
             >
               <Volume2 className="h-6 w-6" />
             </Button>
-            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Speaker</span>
+            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Audio</span>
           </div>
 
-          {/* Switch Camera (Mock) */}
+          {/* Switch Camera */}
           {isVideo && (
             <div className="flex flex-col items-center gap-2">
               <Button
                 size="icon"
-                className="h-14 w-14 rounded-full bg-zinc-800 text-white hover:bg-zinc-700 border border-white/5"
+                onClick={onFlipCamera}
+                className="h-14 w-14 rounded-full bg-zinc-800 text-white hover:bg-zinc-700 border border-white/5 active:rotate-180 transition-transform duration-500"
               >
                 <Camera className="h-6 w-6" />
               </Button>
@@ -441,6 +480,98 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                   </div>
                 </div>
               )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Hidden Audio element for persistent audio projection (especially for voice-only calls) */}
+        <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
+
+        {/* Device Settings Dialog */}
+        <AnimatePresence>
+          {showSettings && !isMinimized && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute bottom-32 left-1/2 -translate-x-1/2 w-[320px] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl p-6 z-[70]"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold">Audio & Video Settings</h3>
+                <Button variant="ghost" size="icon" onClick={() => setShowSettings(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Microphones */}
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Mic className="h-3 w-3" /> Microphone
+                  </p>
+                  <div className="space-y-1">
+                    {availableDevices.filter(d => d.kind === 'audioinput').map(device => (
+                      <button
+                        key={device.deviceId}
+                        onClick={() => onSwitchMicrophone?.(device.deviceId)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                          selectedAudioInput === device.deviceId ? "bg-primary/20 text-primary" : "hover:bg-white/5"
+                        )}
+                      >
+                        {device.label || `Microphone ${device.deviceId.slice(0, 4)}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Speakers */}
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Volume2 className="h-3 w-3" /> Output (Speaker/BT)
+                  </p>
+                  <div className="space-y-1">
+                    {availableDevices.filter(d => d.kind === 'audiooutput' || (d.kind as any) === 'audio' ).map(device => (
+                      <button
+                        key={device.deviceId}
+                        onClick={() => onSwitchAudioOutput?.(device.deviceId)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                          selectedAudioOutput === device.deviceId ? "bg-primary/20 text-primary" : "hover:bg-white/5"
+                        )}
+                      >
+                        {device.label || `Speaker ${device.deviceId.slice(0, 4)}`}
+                      </button>
+                    ))}
+                    {availableDevices.filter(d => d.kind === 'audiooutput').length === 0 && (
+                      <p className="text-xs text-zinc-600 italic px-3">Browser default output</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cameras */}
+                {isVideo && (
+                  <div>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <Camera className="h-3 w-3" /> Camera
+                    </p>
+                    <div className="space-y-1">
+                      {availableDevices.filter(d => d.kind === 'videoinput').map(device => (
+                        <button
+                          key={device.deviceId}
+                          onClick={() => onSwitchCamera?.(device.deviceId)}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                            selectedVideoInput === device.deviceId ? "bg-primary/20 text-primary" : "hover:bg-white/5"
+                          )}
+                        >
+                          {device.label || `Camera ${device.deviceId.slice(0, 4)}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

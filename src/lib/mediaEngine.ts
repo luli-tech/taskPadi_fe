@@ -285,6 +285,24 @@ export class MediaEngine {
     encodeLoop();
   }
 
+  async replaceVideoTrack(track: MediaStreamTrack) {
+    console.log("Replacing video track in engine...");
+    if (this.videoEncoder) {
+      try { this.videoEncoder.close(); } catch (e) {}
+      this.videoEncoder = null;
+    }
+    await this.setupVideoEncoder(track);
+  }
+
+  async replaceAudioTrack(track: MediaStreamTrack) {
+    console.log("Replacing audio track in engine...");
+    if (this.audioEncoder) {
+      try { this.audioEncoder.close(); } catch (e) {}
+      this.audioEncoder = null;
+    }
+    await this.setupAudioEncoder(track);
+  }
+
   private handleEncodedChunk(chunk: any, metadata: any, type: MediaType) {
     if (this.ws.readyState !== WebSocket.OPEN) return;
 

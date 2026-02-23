@@ -23,6 +23,14 @@ export const VideoCallManager: React.FC = () => {
     rejectCall, 
     endCall,
     addParticipantToCall,
+    availableDevices,
+    selectedAudioInput,
+    selectedAudioOutput,
+    selectedVideoInput,
+    switchCamera,
+    switchMicrophone,
+    flipCamera,
+    setSelectedAudioOutput,
   } = useVideoCallContext();
 
   // Fetch all users so we can show the "add to call" list
@@ -32,7 +40,7 @@ export const VideoCallManager: React.FC = () => {
     .filter((u: any) => u.id !== user?.id)
     .map((u: any) => ({ id: u.id, username: u.username, avatar_url: u.avatar_url || undefined }));
 
-  if (!isAuthenticated || !user) return null;
+  if (!isAuthenticated || !user || status === 'idle') return null;
 
   return (
     <VideoCallOverlay
@@ -48,6 +56,14 @@ export const VideoCallManager: React.FC = () => {
       onEnd={endCall}
       onAddParticipant={addParticipantToCall}
       availableUsers={availableUsers}
+      availableDevices={availableDevices}
+      selectedAudioInput={selectedAudioInput}
+      selectedAudioOutput={selectedAudioOutput}
+      selectedVideoInput={selectedVideoInput}
+      onSwitchCamera={switchCamera}
+      onSwitchMicrophone={switchMicrophone}
+      onFlipCamera={flipCamera}
+      onSwitchAudioOutput={setSelectedAudioOutput}
     />
   );
 };

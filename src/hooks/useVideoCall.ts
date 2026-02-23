@@ -34,8 +34,15 @@ export const useVideoCall = (currentUserId: string) => {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
   const [isGroupCall, setIsGroupCall] = useState(false);
+  const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioInput, setSelectedAudioInput] = useState<string>('');
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>('');
+  const [selectedVideoInput, setSelectedVideoInput] = useState<string>('');
   
   const statusRef = useRef<CallStatus>(CallStatus.IDLE);
+  const activeCallIdRef = useRef<string | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const mediaWs = useRef<WebSocket | null>(null);
   const mediaEngine = useRef<MediaEngine | null>(null);
   const remoteVideoWriter = useRef<any>(null);
@@ -54,14 +61,34 @@ export const useVideoCall = (currentUserId: string) => {
     statusRef.current = newStatus;
   }, []);
 
+  const updateActiveCallId = useCallback((id: string | null) => {
+    setActiveCallId(id);
+    activeCallIdRef.current = id;
+  }, []);
+
+  const updateLocalStream = useCallback((stream: MediaStream | null) => {
+    setLocalStream(stream);
+    localStreamRef.current = stream;
+  }, []);
+
+  const updateRemoteStream = useCallback((stream: MediaStream | null) => {
+    setRemoteStream(stream);
+    remoteStreamRef.current = stream;
+  }, []);
+
   const cleanup = useCallback(() => {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
+    // Stop all local tracks using the ref for 100% reliability
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => {
+        console.log(`Stopping track: ${track.kind}`);
+        track.stop();
+      });
+      updateLocalStream(null);
     }
-    if (remoteStream) {
-      remoteStream.getTracks().forEach(track => track.stop());
-      setRemoteStream(null);
+    
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach(track => track.stop());
+      updateRemoteStream(null);
     }
     if (mediaWs.current) {
       mediaWs.current.close();
@@ -75,11 +102,11 @@ export const useVideoCall = (currentUserId: string) => {
     remoteAudioWriter.current = null;
     
     updateStatus(CallStatus.IDLE);
-    setActiveCallId(null);
+    updateActiveCallId(null);
     setRemoteUser(null);
     setParticipants([]);
     setIsGroupCall(false);
-  }, [localStream, remoteStream, updateStatus]);
+  }, [localStream, remoteStream, updateStatus, updateActiveCallId]);
 
   const connectToMediaRelay = useCallback((path: string, currentLocalStream: MediaStream | null) => {
     if (mediaWs.current) mediaWs.current.close();
@@ -124,7 +151,7 @@ export const useVideoCall = (currentUserId: string) => {
         remoteAudioWriter.current = audioGenerator.writable.getWriter();
         tracks.push(audioGenerator);
 
-        setRemoteStream(new MediaStream(tracks));
+        updateRemoteStream(new MediaStream(tracks));
       }
 
       // Start encoding local stream
@@ -157,7 +184,7 @@ export const useVideoCall = (currentUserId: string) => {
       console.log("Incoming call signal check:", { receiverId, currentUserId, payload });
 
       if (String(receiverId) === String(currentUserId)) {
-        setActiveCallId(payload.call_id || payload.callId);
+        updateActiveCallId(payload.call_id || payload.callId);
         setCallType((payload.call_type || payload.callType) as 'video' | 'voice');
         setRemoteUser({ 
           id: callerId, 
@@ -171,7 +198,7 @@ export const useVideoCall = (currentUserId: string) => {
       const payload = data.payload || data.content || data;
       const callId = payload.call_id || payload.callId;
 
-      if (statusRef.current === CallStatus.OUTGOING && String(callId) === String(activeCallId)) {
+      if (statusRef.current === CallStatus.OUTGOING && String(callId) === String(activeCallIdRef.current)) {
         updateStatus(CallStatus.ACTIVE);
         if (payload.media_ws_path || payload.mediaWsPath) {
           connectToMediaRelay(payload.media_ws_path || payload.mediaWsPath, localStream);
@@ -183,8 +210,8 @@ export const useVideoCall = (currentUserId: string) => {
       const payload = data.payload || data.content || data;
       const callId = payload.call_id || payload.callId;
 
-      if (String(callId) === String(activeCallId)) {
-        toast({ title: "Call Rejected", variant: "destructive" });
+      if (String(callId) === String(activeCallIdRef.current)) {
+        toast({ title: "Call Rejected" });
         cleanup();
       }
     });
@@ -193,7 +220,7 @@ export const useVideoCall = (currentUserId: string) => {
       const payload = data.payload || data.content || data;
       const callId = payload.call_id || payload.callId;
 
-      if (String(callId) === String(activeCallId)) {
+      if (String(callId) === String(activeCallIdRef.current)) {
         toast({ title: "Call Ended" });
         cleanup();
       }
@@ -205,7 +232,7 @@ export const useVideoCall = (currentUserId: string) => {
       unsubRejected();
       unsubEnded();
     };
-  }, [currentUserId, activeCallId, connectToMediaRelay, cleanup, toast, updateStatus, localStream]);
+  }, [currentUserId, connectToMediaRelay, cleanup, toast, updateStatus, localStream]);
 
   // Comprehensive check for browser capabilities required for this architecture
   const checkCapabilities = useCallback(() => {
@@ -232,6 +259,113 @@ export const useVideoCall = (currentUserId: string) => {
 
     return true;
   }, [toast]);
+  
+  const enumerateDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setAvailableDevices(devices);
+      
+      // Select defaults if not already set
+      if (!selectedAudioInput) {
+        const defaultMic = devices.find(d => d.kind === 'audioinput');
+        if (defaultMic) setSelectedAudioInput(defaultMic.deviceId);
+      }
+      if (!selectedVideoInput) {
+        const defaultCam = devices.find(d => d.kind === 'videoinput');
+        if (defaultCam) setSelectedVideoInput(defaultCam.deviceId);
+      }
+      if (!selectedAudioOutput) {
+        const defaultSpk = devices.find(d => d.kind === 'audiooutput');
+        if (defaultSpk) setSelectedAudioOutput(defaultSpk.deviceId);
+      }
+    } catch (err) {
+      console.error("Error enumerating devices:", err);
+    }
+  }, [selectedAudioInput, selectedVideoInput, selectedAudioOutput]);
+
+  // Update devices whenever a call starts or when they change
+  useEffect(() => {
+    if (status !== CallStatus.IDLE) {
+      enumerateDevices();
+      navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+      return () => navigator.mediaDevices.removeEventListener('devicechange', enumerateDevices);
+    }
+  }, [status, enumerateDevices]);
+
+  const switchCamera = async (deviceId: string) => {
+    if (!localStream) return;
+    try {
+      console.log(`Switching camera to: ${deviceId}`);
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { ideal: deviceId } },
+        audio: false
+      });
+      
+      const newTrack = newStream.getVideoTracks()[0];
+      const oldTrack = localStream.getVideoTracks()[0];
+      
+      if (oldTrack) oldTrack.stop();
+      
+      localStream.removeTrack(oldTrack);
+      localStream.addTrack(newTrack);
+      
+      // Force React update by creating a new stream wrapper
+      updateLocalStream(new MediaStream(localStream.getTracks()));
+      setSelectedVideoInput(deviceId);
+      
+      if (mediaEngine.current) {
+        await mediaEngine.current.replaceVideoTrack(newTrack);
+      }
+    } catch (err) {
+      console.error("Error switching camera:", err);
+      toast({ title: "Failed to switch camera", variant: "destructive" });
+    }
+  };
+
+  const switchMicrophone = async (deviceId: string) => {
+    if (!localStream) return;
+    try {
+      console.log(`Switching microphone to: ${deviceId}`);
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { ideal: deviceId } },
+        video: false
+      });
+      
+      const newTrack = newStream.getAudioTracks()[0];
+      const oldTrack = localStream.getAudioTracks()[0];
+      
+      if (oldTrack) oldTrack.stop();
+      
+      localStream.removeTrack(oldTrack);
+      localStream.addTrack(newTrack);
+      
+      // Force React update
+      updateLocalStream(new MediaStream(localStream.getTracks()));
+      setSelectedAudioInput(deviceId);
+
+      if (mediaEngine.current) {
+        await mediaEngine.current.replaceAudioTrack(newTrack);
+      }
+    } catch (err) {
+      console.error("Error switching microphone:", err);
+      toast({ title: "Failed to switch microphone", variant: "destructive" });
+    }
+  };
+
+  const flipCamera = async () => {
+    if (!availableDevices.length || !selectedVideoInput) return;
+    
+    const videoDevices = availableDevices.filter(d => d.kind === 'videoinput');
+    if (videoDevices.length < 2) return;
+
+    const currentIndex = videoDevices.findIndex(d => d.deviceId === selectedVideoInput);
+    const nextIndex = (currentIndex + 1) % videoDevices.length;
+    const nextDevice = videoDevices[nextIndex];
+
+    if (nextDevice) {
+      await switchCamera(nextDevice.deviceId);
+    }
+  };
 
   // Helper for consistent media access across mobile and desktop
   const getMediaStream = async (type: 'video' | 'voice'): Promise<MediaStream> => {
@@ -245,11 +379,11 @@ export const useVideoCall = (currentUserId: string) => {
     // Simplest possible constraints for the highest success rate on iOS
     const constraints: MediaStreamConstraints = {
       audio: true,
-      video: type === 'video' ? (isMobile ? true : {
+      video: type === 'video' ? {
         width: { ideal: 1280 },
         height: { ideal: 720 },
-        facingMode: 'user'
-      }) : false
+        facingMode: 'user' // Force front camera
+      } : false
     };
 
     try {
@@ -268,7 +402,7 @@ export const useVideoCall = (currentUserId: string) => {
       console.warn("Primary media request failed, retrying with raw true/true...", err);
       return await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: type === 'video'
+        video: type === 'video' ? { facingMode: 'user' } : false
       });
     }
   };
@@ -296,7 +430,7 @@ export const useVideoCall = (currentUserId: string) => {
         return;
       }
       
-      setLocalStream(stream);
+      updateLocalStream(stream);
 
       // Background: notify server
       const call = await initiateCallApi({ 
@@ -304,7 +438,7 @@ export const useVideoCall = (currentUserId: string) => {
         call_type: type
       }).unwrap();
       
-      setActiveCallId(call.id);
+      updateActiveCallId(call.id);
       setParticipants(call.participants || []);
     } catch (error: any) {
       const msg = error?.data?.error || error?.data?.message || "Failed to initiate call";
@@ -336,7 +470,7 @@ export const useVideoCall = (currentUserId: string) => {
         return;
       }
 
-      setLocalStream(stream);
+      updateLocalStream(stream);
 
       // Background: notify server
       const call = await initiateCallApi({ 
@@ -344,7 +478,7 @@ export const useVideoCall = (currentUserId: string) => {
         call_type: type
       }).unwrap();
       
-      setActiveCallId(call.id);
+      updateActiveCallId(call.id);
       setParticipants(call.participants || []);
     } catch (error: any) {
       const msg = error?.data?.error || error?.data?.message || "Failed to start group call";
@@ -365,7 +499,8 @@ export const useVideoCall = (currentUserId: string) => {
   };
 
   const acceptCall = async () => {
-    if (!activeCallId) return;
+    if (!activeCallId || statusRef.current === CallStatus.ACTIVE) return;
+    
     try {
       let stream;
       try {
@@ -380,8 +515,19 @@ export const useVideoCall = (currentUserId: string) => {
         return;
       }
 
-      setLocalStream(stream);
-      const call = await acceptCallApi(activeCallId).unwrap();
+      updateLocalStream(stream);
+      let call;
+      try {
+        call = await acceptCallApi(activeCallId).unwrap();
+      } catch (apiError: any) {
+        const errorMsg = apiError?.data?.error || apiError?.data?.message || "";
+        if (errorMsg.toLowerCase().includes("active")) {
+          // If the backend says call is already active, we can proceed to active status
+          updateStatus(CallStatus.ACTIVE);
+          return;
+        }
+        throw apiError;
+      }
       
       const mediaPath = (call as any).media_ws_path;
       if (mediaPath) {
@@ -448,5 +594,13 @@ export const useVideoCall = (currentUserId: string) => {
     acceptCall,
     rejectCall,
     endCall,
+    availableDevices,
+    selectedAudioInput,
+    selectedAudioOutput,
+    selectedVideoInput,
+    switchCamera,
+    switchMicrophone,
+    flipCamera,
+    setSelectedAudioOutput,
   };
 };
