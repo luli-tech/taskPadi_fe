@@ -165,8 +165,9 @@ export const useVideoCall = (currentUserId: string) => {
       audioData.close();
     };
 
-    const baseUrl = wsService.getUrl().replace('wss://', '').replace('ws://', '').split('/api/')[0];
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const originalWsUrl = wsService.getUrl();
+    const baseUrl = originalWsUrl.replace('wss://', '').replace('ws://', '').split('/api/')[0];
+    const protocol = originalWsUrl.startsWith('wss://') ? 'wss:' : 'ws:';
     const fullUrl = `${protocol}//${baseUrl}${path}`;
     const token = localStorage.getItem("authToken");
 
