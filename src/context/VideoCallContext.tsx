@@ -16,8 +16,8 @@ interface VideoCallContextType {
   selectedAudioInput: string;
   selectedAudioOutput: string;
   selectedVideoInput: string;
-  initiateCall: (receiverId: string, receiverUsername: string, type?: 'video' | 'voice') => Promise<void>;
-  initiateGroupCall: (groupId: string, groupName: string, type?: 'video' | 'voice') => Promise<void>;
+  initiateCall: (receiverId: string, receiverUsername: string, type?: 'video' | 'voice', avatarUrl?: string) => Promise<void>;
+  initiateGroupCall: (groupId: string, groupName: string, type?: 'video' | 'voice', avatarUrl?: string) => Promise<void>;
   addParticipantToCall: (userId: string, username: string) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: () => Promise<void>;

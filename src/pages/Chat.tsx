@@ -832,7 +832,7 @@ export default function Chat() {
                       variant="ghost" 
                       size="icon" 
                       className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                      onClick={() => selectedUserInfo && initiateCall(selectedUserInfo.user_id, selectedUserInfo.username)}
+                      onClick={() => selectedUserInfo && initiateCall(selectedUserInfo.user_id, selectedUserInfo.username, 'video', selectedUserInfo.avatar_url || undefined)}
                       title="Video call"
                     >
                       <Video className="h-5 w-5" />
@@ -841,7 +841,7 @@ export default function Chat() {
                       variant="ghost" 
                       size="icon" 
                       className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                      onClick={() => selectedUserInfo && initiateCall(selectedUserInfo.user_id, selectedUserInfo.username, 'voice')}
+                      onClick={() => selectedUserInfo && initiateCall(selectedUserInfo.user_id, selectedUserInfo.username, 'voice', selectedUserInfo.avatar_url || undefined)}
                       title="Voice call"
                     >
                       <Phone className="h-5 w-5" />
@@ -854,7 +854,7 @@ export default function Chat() {
                       variant="ghost" 
                       size="icon" 
                       className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                      onClick={() => selectedUserInfo && initiateGroupCall(selectedUserInfo.user_id, selectedUserInfo.username)}
+                      onClick={() => selectedUserInfo && initiateGroupCall(selectedUserInfo.user_id, selectedUserInfo.username, 'video', selectedUserInfo.avatar_url || undefined)}
                       title="Group video call"
                     >
                       <Video className="h-5 w-5" />
@@ -863,7 +863,7 @@ export default function Chat() {
                       variant="ghost" 
                       size="icon" 
                       className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
-                      onClick={() => selectedUserInfo && initiateGroupCall(selectedUserInfo.user_id, selectedUserInfo.username, 'voice')}
+                      onClick={() => selectedUserInfo && initiateGroupCall(selectedUserInfo.user_id, selectedUserInfo.username, 'voice', selectedUserInfo.avatar_url || undefined)}
                       title="Group voice call"
                     >
                       <Phone className="h-5 w-5" />

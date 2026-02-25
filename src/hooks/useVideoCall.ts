@@ -262,7 +262,8 @@ export const useVideoCall = (currentUserId: string) => {
         setCallType((payload.call_type || payload.callType) as 'video' | 'voice');
         setRemoteUser({ 
           id: callerId, 
-          username: payload.caller_username || payload.sender_username || 'User' 
+          username: payload.caller_username || payload.sender_username || 'User',
+          avatar_url: payload.caller_avatar_url || payload.sender_avatar_url
         });
         updateStatus(CallStatus.INCOMING);
       }
@@ -274,6 +275,14 @@ export const useVideoCall = (currentUserId: string) => {
 
       if (statusRef.current === CallStatus.OUTGOING && String(callId) === String(activeCallIdRef.current)) {
         updateStatus(CallStatus.ACTIVE);
+        
+        // Update remote user info from server signal
+        setRemoteUser(prev => ({
+          ...prev!,
+          username: payload.receiver_username || payload.recipient_username || prev?.username || 'User',
+          avatar_url: payload.receiver_avatar_url || payload.recipient_avatar_url || prev?.avatar_url
+        }));
+
         if (payload.media_ws_path || payload.mediaWsPath) {
           connectToMediaRelay(payload.media_ws_path || payload.mediaWsPath, localStream);
         }
@@ -533,11 +542,11 @@ export const useVideoCall = (currentUserId: string) => {
     }
   };
 
-  const initiateCall = async (receiverId: string, receiverUsername: string, type: 'video' | 'voice' = 'video') => {
+  const initiateCall = async (receiverId: string, receiverUsername: string, type: 'video' | 'voice' = 'video', avatarUrl?: string) => {
     // Instant UI feedback - prioritize showing the calling screen
     await resumeAudio();
     setCallType(type);
-    setRemoteUser({ id: receiverId, username: receiverUsername });
+    setRemoteUser({ id: receiverId, username: receiverUsername, avatar_url: avatarUrl });
     setIsGroupCall(false);
     updateStatus(CallStatus.OUTGOING);
 
@@ -574,11 +583,11 @@ export const useVideoCall = (currentUserId: string) => {
     }
   };
 
-  const initiateGroupCall = async (groupId: string, groupName: string, type: 'video' | 'voice' = 'video') => {
+  const initiateGroupCall = async (groupId: string, groupName: string, type: 'video' | 'voice' = 'video', avatarUrl?: string) => {
     // Instant UI feedback
     await resumeAudio();
     setCallType(type);
-    setRemoteUser({ id: groupId, username: groupName });
+    setRemoteUser({ id: groupId, username: groupName, avatar_url: avatarUrl });
     setIsGroupCall(true);
     updateStatus(CallStatus.OUTGOING);
 
