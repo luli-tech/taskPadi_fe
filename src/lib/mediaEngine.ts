@@ -192,6 +192,7 @@ export class MediaEngine {
   private audioEncoder: any = null;
   private videoDecoders: Map<string, any> = new Map();
   private audioDecoders: Map<string, any> = new Map();
+  private hasSeenVideoKeyframe: Map<string, boolean> = new Map();
   private ws: WebSocket;
   private localUserId: string;
   private onRemoteFrame: OnRemoteFrameCallback;
@@ -333,20 +334,32 @@ export class MediaEngine {
 
   private decodeVideo(packet: MediaPacket) {
     let decoder = this.videoDecoders.get(packet.senderId);
-    if (!decoder) {
+    if (!decoder || decoder.state === 'closed') {
       decoder = new VideoDecoder({
         output: (frame: any) => this.onRemoteFrame(packet.senderId, MediaType.VIDEO, frame),
-        error: (e: any) => console.error("VideoDecoder error", e),
+        error: (e: any) => console.error(`VideoDecoder error for ${packet.senderId}:`, e),
       });
       decoder.configure({
         codec: 'avc1.42E01E',
       });
       this.videoDecoders.set(packet.senderId, decoder);
+      this.hasSeenVideoKeyframe.set(packet.senderId, false);
+    }
+
+    const isKeyframe = (packet.frameType as any) === 'key';
+
+    if (!this.hasSeenVideoKeyframe.get(packet.senderId)) {
+      if (!isKeyframe) {
+        // Drop delta frames until we get our first keyframe.
+        // This prevents the decoder from crashing when a receiver joins mid-stream.
+        return;
+      }
+      this.hasSeenVideoKeyframe.set(packet.senderId, true);
     }
 
     if (decoder.state === 'configured') {
       const chunk = new EncodedVideoChunk({
-        type: (packet.frameType as any) === 'key' ? 'key' : 'delta',
+        type: isKeyframe ? 'key' : 'delta',
         timestamp: packet.timestamp,
         data: packet.data,
       });
