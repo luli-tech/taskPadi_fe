@@ -9,7 +9,7 @@ import {
   type CallParticipant,
 } from '@/store/api/videoCallApi';
 import { useToast } from '@/hooks/use-toast';
-import { MediaEngine, MediaType } from '@/lib/mediaEngine';
+// Removed MediaEngine imports since WebRTC handles this natively
 
 export enum CallStatus {
   IDLE = 'idle',
@@ -44,12 +44,8 @@ export const useVideoCall = (currentUserId: string) => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const remoteCanvasRef = useRef<HTMLCanvasElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioNextStartTime = useRef<number>(0);
   const mediaWs = useRef<WebSocket | null>(null);
-  const mediaEngine = useRef<MediaEngine | null>(null);
-  const remoteVideoWriter = useRef<any>(null);
-  const remoteAudioWriter = useRef<any>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   
   const { toast } = useToast();
 
@@ -62,19 +58,6 @@ export const useVideoCall = (currentUserId: string) => {
   const updateStatus = useCallback((newStatus: CallStatus) => {
     setStatus(newStatus);
     statusRef.current = newStatus;
-
-    // Initialize/Resume AudioContext on user interaction
-    if (newStatus === CallStatus.INCOMING || newStatus === CallStatus.ACTIVE) {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
-          latencyHint: 'interactive',
-          sampleRate: 48000
-        });
-        audioNextStartTime.current = 0;
-      } else if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume();
-      }
-    }
   }, []);
 
   const updateActiveCallId = useCallback((id: string | null) => {
@@ -106,16 +89,14 @@ export const useVideoCall = (currentUserId: string) => {
       remoteStreamRef.current.getTracks().forEach(track => track.stop());
       updateRemoteStream(null);
     }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
     if (mediaWs.current) {
       mediaWs.current.close();
       mediaWs.current = null;
     }
-    if (mediaEngine.current) {
-      mediaEngine.current.destroy();
-      mediaEngine.current = null;
-    }
-    remoteVideoWriter.current = null;
-    remoteAudioWriter.current = null;
     
     updateStatus(CallStatus.IDLE);
     updateActiveCallId(null);
@@ -124,46 +105,9 @@ export const useVideoCall = (currentUserId: string) => {
     setIsGroupCall(false);
   }, [localStream, remoteStream, updateStatus, updateActiveCallId]);
 
-  const connectToMediaRelay = useCallback((path: string, currentLocalStream: MediaStream | null) => {
+  const connectToMediaRelay = useCallback((path: string, currentLocalStream: MediaStream | null, isInitiator: boolean = false) => {
     if (mediaWs.current) mediaWs.current.close();
-
-    const playAudioData = (audioData: any) => {
-      if (!audioContextRef.current) {
-        audioData.close();
-        return;
-      }
-      
-      const ctx = audioContextRef.current;
-      const numberOfChannels = audioData.numberOfChannels;
-      const numberOfFrames = audioData.numberOfFrames;
-      const sampleRate = audioData.sampleRate;
-      
-      const buffer = ctx.createBuffer(numberOfChannels, numberOfFrames, sampleRate);
-      
-      for (let i = 0; i < numberOfChannels; i++) {
-        const channelData = new Float32Array(numberOfFrames);
-        audioData.copyTo(channelData, { planeIndex: i });
-        buffer.copyToChannel(channelData, i);
-      }
-      
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      
-      // Schedule playback to avoid gaps
-      const startTime = Math.max(ctx.currentTime, audioNextStartTime.current);
-      
-      // Lag protection: If the buffer is more than 300ms ahead, reset it to prevent compounding delay
-      if (audioNextStartTime.current > ctx.currentTime + 0.3) {
-        console.warn("Audio lag detected, resetting jitter buffer...");
-        audioNextStartTime.current = ctx.currentTime;
-      }
-
-      source.start(startTime);
-      audioNextStartTime.current = startTime + buffer.duration;
-      
-      audioData.close();
-    };
+    if (peerConnectionRef.current) peerConnectionRef.current.close();
 
     const originalWsUrl = wsService.getUrl();
     const baseUrl = originalWsUrl.replace('wss://', '').replace('ws://', '').split('/api/')[0];
@@ -171,81 +115,70 @@ export const useVideoCall = (currentUserId: string) => {
     const fullUrl = `${protocol}//${baseUrl}${path}`;
     const token = localStorage.getItem("authToken");
 
-    console.log(`Connecting to media relay: ${fullUrl}`);
+    console.log(`Connecting to WebRTC signaling: ${fullUrl}`);
     const socket = new WebSocket(`${fullUrl}${token ? `?token=${token}` : ''}`);
-    socket.binaryType = 'arraybuffer';
 
-    // Initialize MediaEngine
-    const onFrame = (userId: string, type: MediaType, frame: any) => {
-      if (type === MediaType.VIDEO) {
-        if (remoteVideoWriter.current) {
-          remoteVideoWriter.current.write(frame);
-        } else if (remoteCanvasRef.current) {
-          // Fallback: Render VideoFrame to Canvas
-          const canvas = remoteCanvasRef.current;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            canvas.width = frame.displayWidth;
-            canvas.height = frame.displayHeight;
-            ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
-          }
-          frame.close();
-        } else {
-          frame.close();
-        }
-      } else if (type === MediaType.AUDIO) {
-        if (remoteAudioWriter.current) {
-          remoteAudioWriter.current.write(frame);
-        } else {
-          // Fallback: Play AudioData via Web Audio API
-          playAudioData(frame);
-        }
-      } else {
-        frame.close();
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    });
+    peerConnectionRef.current = pc;
+
+    if (currentLocalStream) {
+      currentLocalStream.getTracks().forEach(track => {
+        pc.addTrack(track, currentLocalStream);
+      });
+    }
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'ice-candidate', candidate: event.candidate }));
       }
     };
 
-    const engine = new MediaEngine(socket, currentUserId, onFrame);
-    mediaEngine.current = engine;
+    pc.ontrack = (event) => {
+      console.log("Received remote track:", event.track.kind);
+      updateRemoteStream(event.streams[0]);
+    };
 
-    socket.onopen = () => {
-      console.log("Media relay connected");
-      
-      const tracks: MediaStreamTrack[] = [];
-
-      // Create remote track generators
-      if ((window as any).MediaStreamTrackGenerator) {
-        // Video Generator
-        const videoGenerator = new (window as any).MediaStreamTrackGenerator({ kind: 'video' });
-        remoteVideoWriter.current = videoGenerator.writable.getWriter();
-        tracks.push(videoGenerator);
-
-        // Audio Generator
-        const audioGenerator = new (window as any).MediaStreamTrackGenerator({ kind: 'audio' });
-        remoteAudioWriter.current = audioGenerator.writable.getWriter();
-        tracks.push(audioGenerator);
-
-        updateRemoteStream(new MediaStream(tracks));
-      }
-
-      // Start encoding local stream
-      if (currentLocalStream && engine) {
-        engine.startEncoding(currentLocalStream);
+    socket.onopen = async () => {
+      console.log("WebRTC signaling connected");
+      if (isInitiator) {
+         try {
+           const offer = await pc.createOffer();
+           await pc.setLocalDescription(offer);
+           socket.send(JSON.stringify({ type: 'offer', offer }));
+         } catch(e) { console.error("Error creating WebRTC offer", e); }
       }
     };
 
-    socket.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer && mediaEngine.current) {
-        mediaEngine.current.handleIncomingData(event.data);
+    socket.onmessage = async (event) => {
+      if (typeof event.data !== 'string') return;
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'offer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.send(JSON.stringify({ type: 'answer', answer }));
+        } else if (message.type === 'answer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
+        } else if (message.type === 'ice-candidate') {
+          await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+        }
+      } catch (err) {
+        console.error("Signaling error:", err);
       }
     };
 
     socket.onclose = () => {
-      console.log("Media relay closed");
+      console.log("WebRTC signaling closed");
     };
 
     mediaWs.current = socket;
-  }, [currentUserId]);
+  }, [updateRemoteStream]);
 
   // Handle incoming signaling messages from the main WebSocket
   useEffect(() => {
@@ -284,7 +217,7 @@ export const useVideoCall = (currentUserId: string) => {
         }));
 
         if (payload.media_ws_path || payload.mediaWsPath) {
-          connectToMediaRelay(payload.media_ws_path || payload.mediaWsPath, localStream);
+          connectToMediaRelay(payload.media_ws_path || payload.mediaWsPath, localStream, true);
         }
       }
     });
@@ -345,12 +278,7 @@ export const useVideoCall = (currentUserId: string) => {
   
   // Helper to ensure AudioContext is active (must be called from a user interaction)
   const resumeAudio = useCallback(async () => {
-    if (audioContextRef.current) {
-      if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
-        console.log("AudioContext resumed via interaction");
-      }
-    }
+    // Native WebRTC handles this automatically now
   }, []);
 
   const enumerateDevices = useCallback(async () => {
@@ -412,9 +340,10 @@ export const useVideoCall = (currentUserId: string) => {
       updateLocalStream(newLocalStream);
       setSelectedVideoInput(deviceId);
       
-      // 4. Update Engine
-      if (mediaEngine.current) {
-        await mediaEngine.current.replaceVideoTrack(newTrack);
+      // 4. Update WebRTC PeerConnection
+      if (peerConnectionRef.current) {
+        const sender = peerConnectionRef.current.getSenders().find((s: any) => s.track && s.track.kind === "video");
+        if (sender) sender.replaceTrack(newTrack);
       }
     } catch (err) {
       console.error("Error switching camera:", err);
@@ -464,9 +393,10 @@ export const useVideoCall = (currentUserId: string) => {
       updateLocalStream(newLocalStream);
       setSelectedAudioInput(deviceId);
 
-      // 4. Update Engine
-      if (mediaEngine.current) {
-        await mediaEngine.current.replaceAudioTrack(newTrack);
+      // 4. Update WebRTC PeerConnection
+      if (peerConnectionRef.current) {
+        const sender = peerConnectionRef.current.getSenders().find((s: any) => s.track && s.track.kind === "audio");
+        if (sender) sender.replaceTrack(newTrack);
       }
       
       toast({ title: "Microphone Switched" });
@@ -669,7 +599,7 @@ export const useVideoCall = (currentUserId: string) => {
       
       const mediaPath = (call as any).media_ws_path;
       if (mediaPath) {
-        connectToMediaRelay(mediaPath, stream);
+        connectToMediaRelay(mediaPath, stream, false);
       }
       
       updateStatus(CallStatus.ACTIVE);
