@@ -15,8 +15,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  const { data: tasks = [], isLoading: tasksLoading } = useGetTasksQuery();
-  const { data: notifications = [], isLoading: notificationsLoading } = useGetNotificationsQuery();
+  const { data: tasks = [], isLoading: tasksLoading, isFetching: tasksFetching } = useGetTasksQuery(undefined, {
+    refetchOnMountOrArgChange: false, // Use cached data if available
+  });
+  const { data: notifications = [], isLoading: notificationsLoading, isFetching: notificationsFetching } = useGetNotificationsQuery(undefined, {
+    refetchOnMountOrArgChange: false, // Use cached data if available
+  });
 
   const stats = {
     totalTasks: tasks.length,
@@ -90,7 +94,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {notificationsLoading ? (
+              {notificationsLoading && !notifications.length ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="flex items-center gap-4">
@@ -141,7 +145,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {tasksLoading ? (
+              {tasksLoading && !tasks.length ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
                 </div>

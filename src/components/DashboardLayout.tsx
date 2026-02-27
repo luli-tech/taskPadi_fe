@@ -14,6 +14,9 @@ import {
   Settings,
   Shield,
   Home,
+  CheckSquare,
+  MessageSquare,
+  Bell,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -44,11 +47,20 @@ export function DashboardLayout() {
   const navigation = [
     { name: "Home", href: "/", icon: Home },
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Tasks", href: "/tasks", icon: CheckSquare },
+    { name: "Chat", href: "/chat", icon: MessageSquare },
+    { name: "Notifications", href: "/notifications", icon: Bell },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
-  // Bottom navigation without Settings (Settings moved to header)
-  const bottomNavigation = navigation.filter(item => item.name !== "Settings");
+  // Bottom navigation: Home, Dashboard, Tasks, Chat, Notifications (Settings moved to header)
+  const bottomNavigation = [
+    { name: "Home", href: "/", icon: Home },
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Tasks", href: "/tasks", icon: CheckSquare },
+    { name: "Chat", href: "/chat", icon: MessageSquare },
+    { name: "Notifications", href: "/notifications", icon: Bell },
+  ];
 
   const isChatPage = location.pathname === "/chat";
   const shouldHideSidebarOnMobile = isMobile && isChatPage;
@@ -68,8 +80,8 @@ export function DashboardLayout() {
           "hidden lg:flex fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border"
         )}
       >
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-border flex items-center justify-between">
+        <div className="flex flex-col h-full overflow-hidden">
+          <div className="p-6 border-b border-border flex items-center justify-between shrink-0">
             <Link to="/" className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <img 
@@ -80,16 +92,19 @@ export function DashboardLayout() {
               </div>
               <span className="text-xl font-bold">TaskPadi</span>
             </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="w-5 h-5" />
-            </Button>
+            {sidebarOpen && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(false)}
+                className="lg:flex"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            )}
           </div>
 
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0">
             {navigation.map((item) => (
               <NavLink
                 key={item.name}
@@ -119,9 +134,9 @@ export function DashboardLayout() {
             </div>
           </nav>
 
-          <div className="p-4 border-t border-border">
+          <div className="p-4 border-t border-border shrink-0">
             <div className="flex items-center gap-3 mb-3 px-4 py-2">
-              <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center shrink-0">
                 <User className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
@@ -153,7 +168,7 @@ export function DashboardLayout() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="hidden lg:flex"
+                className={cn("hidden lg:flex", sidebarOpen && "lg:hidden")}
               >
                 <Menu className="w-5 h-5" />
               </Button>
@@ -187,8 +202,17 @@ export function DashboardLayout() {
         </header>
         )}
 
-        <main className={cn("flex-1", shouldHideSidebarOnMobile ? "p-0 pb-20" : "p-6 pb-24 sm:pb-6")}>
-          <div className={cn(shouldHideSidebarOnMobile ? "w-full h-full" : "max-w-7xl mx-auto")}>
+        <main className={cn(
+          "flex-1 flex flex-col min-h-0 overflow-hidden",
+          shouldHideSidebarOnMobile ? "p-0 pb-20" : isChatPage ? "p-0" : "p-6 pb-24 sm:pb-6"
+        )}>
+          <div className={cn(
+            shouldHideSidebarOnMobile 
+              ? "w-full h-full overflow-hidden flex-1" 
+              : isChatPage 
+                ? "w-full h-full overflow-hidden flex-1"
+                : "max-w-7xl mx-auto w-full flex-1"
+          )}>
             <Outlet />
           </div>
         </main>
@@ -198,23 +222,31 @@ export function DashboardLayout() {
       {/* Hide bottom nav when in a chat conversation on mobile */}
       {isMobile && !(location.pathname === "/chat" && new URLSearchParams(location.search).get("chat")) && (
         <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border lg:hidden">
-          <div className="grid grid-cols-4 h-16">
+          <div className="grid grid-cols-5 h-16">
             {bottomNavigation.map((item) => {
-              const isActive = location.pathname === item.href;
+              const isActive = location.pathname === item.href || 
+                (item.href === "/" && location.pathname === "/");
               return (
                 <NavLink
                   key={item.name}
                   to={item.href}
+                  end={item.href === "/"}
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 text-xs transition-colors",
+                    "flex flex-col items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs transition-colors",
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                   activeClassName="text-primary"
                 >
-                  <item.icon className={cn("h-5 w-5", isActive && "text-primary")} />
-                  <span className={cn("font-medium", isActive && "text-primary")}>
+                  <item.icon className={cn(
+                    isMobile ? "h-4 w-4" : "h-5 w-5",
+                    isActive && "text-primary"
+                  )} />
+                  <span className={cn(
+                    "font-medium truncate max-w-full px-1",
+                    isActive && "text-primary"
+                  )}>
                     {item.name}
                   </span>
                 </NavLink>

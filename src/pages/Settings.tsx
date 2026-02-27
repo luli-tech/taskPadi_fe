@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { User, Bell, Palette, Shield, Save } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function Settings() {
   const { user } = useAppSelector((state) => state.auth);
@@ -24,8 +25,9 @@ export default function Settings() {
     aiSummary: true,
     emailNotifications: false,
   });
+  const { theme, setTheme } = useTheme();
   const [appearance, setAppearance] = useState({
-    theme: "system",
+    theme: theme,
     compactMode: false,
   });
 
@@ -221,14 +223,17 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>Theme</Label>
                 <div className="flex gap-2">
-                  {["light", "dark", "system"].map((theme) => (
+                  {(["light", "dark", "system"] as const).map((themeOption) => (
                     <Button
-                      key={theme}
-                      variant={appearance.theme === theme ? "default" : "outline"}
-                      onClick={() => setAppearance({ ...appearance, theme })}
+                      key={themeOption}
+                      variant={theme === themeOption ? "default" : "outline"}
+                      onClick={() => {
+                        setTheme(themeOption);
+                        setAppearance({ ...appearance, theme: themeOption });
+                      }}
                       className="capitalize"
                     >
-                      {theme}
+                      {themeOption}
                     </Button>
                   ))}
                 </div>

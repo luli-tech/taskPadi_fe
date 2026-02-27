@@ -101,7 +101,8 @@ export const chatApi = baseApi.injectEndpoints({
         if (params?.page) searchParams.append("page", params.page.toString());
         if (params?.limit) searchParams.append("limit", params.limit.toString());
         const queryString = searchParams.toString();
-        return `/messages/${userId}${queryString ? `?${queryString}` : ""}`;
+        // Correct endpoint: /messages/conversation/:user_id (singular "conversation")
+        return `/messages/conversation/${userId}${queryString ? `?${queryString}` : ""}`;
       },
       transformResponse: (response: Message[] | PaginatedMessageResponse | { messages: Message[] } | { data: Message[] }) => {
         if (Array.isArray(response)) return response;
@@ -133,6 +134,21 @@ export const chatApi = baseApi.injectEndpoints({
       query: (messageId) => ({
         url: `/messages/${messageId}/read`,
         method: "PATCH",
+      }),
+      invalidatesTags: ["Messages" as never],
+    }),
+    updateMessage: builder.mutation<Message, { messageId: string; content: string }>({
+      query: ({ messageId, content }) => ({
+        url: `/messages/${messageId}`,
+        method: "PUT",
+        body: { content },
+      }),
+      invalidatesTags: ["Messages" as never],
+    }),
+    deleteMessage: builder.mutation<void, string>({
+      query: (messageId) => ({
+        url: `/messages/${messageId}`,
+        method: "DELETE",
       }),
       invalidatesTags: ["Messages" as never],
     }),
@@ -213,6 +229,8 @@ export const {
   useGetConversationMessagesQuery,
   useGetGroupMessagesQuery,
   useMarkMessageReadMutation,
+  useUpdateMessageMutation,
+  useDeleteMessageMutation,
   useCreateGroupMutation,
   useGetGroupsQuery,
   useGetGroupQuery,

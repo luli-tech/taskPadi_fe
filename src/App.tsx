@@ -7,6 +7,9 @@ import { store } from "@/store";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useTheme } from "@/hooks/use-theme";
+import { VideoCallManager } from "@/components/VideoCallManager";
+import { VideoCallProvider } from "@/context/VideoCallContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdminLogin from "./pages/AdminLogin";
@@ -17,14 +20,18 @@ import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDetails from "./pages/UserDetails";
+import ChatUserDetails from "./pages/ChatUserDetails";
 import NotFound from "./pages/NotFound";
 
-const App = () => (
-  <Provider store={store}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+const AppContent = () => {
+  useTheme(); // Initialize theme
+  return (
+    <VideoCallProvider>
+      <TooltipProvider>
+        <VideoCallManager />
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -39,6 +46,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/users/:userId" element={<ChatUserDetails />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route
@@ -61,7 +69,14 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </VideoCallProvider>
+  );
+};
+
+const App = () => (
+  <Provider store={store}>
+    <AppContent />
   </Provider>
 );
 

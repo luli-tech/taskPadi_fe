@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,6 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Target,
+  TrendingUp,
 } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,7 @@ import { useGetTasksQuery } from "@/store/api/tasksApi";
 import { useGetMyStatsQuery } from "@/store/api/usersApi";
 import { useGetNotificationsQuery } from "@/store/api/notificationsApi";
 import { useGetConversationsQuery } from "@/store/api/chatApi";
+import { useState, useEffect } from "react";
 
 export default function Index() {
   const { isAuthenticated, user, isAdmin } = useAppSelector((state) => state.auth);
@@ -62,6 +65,58 @@ export default function Index() {
   
   // Calculate total unread notifications
   const totalUnreadNotifications = notifications.filter((n) => !n.is_read).length;
+
+  // Carousel state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  
+  // Carousel slides data
+  const carouselSlides = [
+    {
+      icon: Zap,
+      title: "Boost Your Productivity Instantly",
+      description: "Manage tasks efficiently with AI-powered insights and real-time collaboration.",
+      buttonText: isAuthenticated ? "Go to Dashboard" : "Get Started Free",
+      buttonAction: () => navigate(isAuthenticated ? "/dashboard" : "/auth"),
+      bgColor: "bg-gradient-to-br from-primary/10 via-primary/5 to-background",
+    },
+    {
+      icon: Target,
+      title: "Stay Organized & Focused",
+      description: "Track your progress, set priorities, and achieve your goals with intelligent task management.",
+      buttonText: isAuthenticated ? "View Tasks" : "Get Started Free",
+      buttonAction: () => navigate(isAuthenticated ? "/tasks" : "/auth"),
+      bgColor: "bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-background",
+    },
+    {
+      icon: TrendingUp,
+      title: "Collaborate Seamlessly",
+      description: "Work together with your team through real-time chat and shared workspaces.",
+      buttonText: isAuthenticated ? "Open Chat" : "Get Started Free",
+      buttonAction: () => navigate(isAuthenticated ? "/chat" : "/auth"),
+      bgColor: "bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-background",
+    },
+  ];
+
+  // Auto-advance carousel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
+    }, 5000); // Change slide every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [carouselSlides.length]);
+
+  const goToSlide = (index: number) => {
+    setCurrentSlide(index);
+  };
+
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + carouselSlides.length) % carouselSlides.length);
+  };
 
   const summaryCards = [
     {
@@ -164,7 +219,7 @@ export default function Index() {
               <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                 <CheckSquare className="w-6 h-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">TaskFlow</span>
+              <span className="text-xl font-bold">TaskPadi</span>
             </Link>
           </div>
 
@@ -251,7 +306,7 @@ export default function Index() {
                       <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                         <CheckSquare className="w-6 h-6 text-primary-foreground" />
                       </div>
-                      <span className="text-xl font-bold">TaskFlow</span>
+                      <span className="text-xl font-bold">TaskPadi</span>
                     </Link>
                   </div>
                   <Button onClick={() => navigate("/auth")} size="sm">
@@ -266,59 +321,85 @@ export default function Index() {
 
         {/* Main Content */}
         <main className={cn("flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8", isMobile && "pb-20")}>
-        {/* Boost Your Productivity Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative bg-muted/50 rounded-xl p-6 sm:p-8 lg:p-12 overflow-hidden border border-border"
-        >
-          <div className="absolute top-4 right-4 flex items-center gap-2 text-muted-foreground">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted">
-              <ChevronLeft className="h-4 w-4" />
+        {/* Carousel Banner */}
+        <div className="relative rounded-xl overflow-hidden border border-border">
+          {/* Navigation Controls */}
+          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 z-20 flex items-center gap-2 sm:gap-3 text-muted-foreground">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={prevSlide}
+            >
+              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
             </Button>
-            <div className="flex gap-1">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className={cn("h-1.5 w-1.5 rounded-full", i === 1 ? "bg-primary" : "bg-muted-foreground/30")} />
+            <div className="flex gap-1 sm:gap-1.5">
+              {carouselSlides.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => goToSlide(index)}
+                  className={cn(
+                    "rounded-full transition-all",
+                    index === currentSlide 
+                      ? "bg-primary h-2 w-6 sm:h-2.5 sm:w-8" 
+                      : "bg-muted-foreground/30 hover:bg-muted-foreground/50 h-1.5 w-1.5 sm:h-2 sm:w-2"
+                  )}
+                  aria-label={`Go to slide ${index + 1}`}
+                />
               ))}
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted">
-              <ChevronRight className="h-4 w-4" />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={nextSlide}
+            >
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
             </Button>
           </div>
           
-          <div className="relative z-10 max-w-2xl">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-primary" />
-              </div>
-            </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 text-foreground">
-              Boost Your Productivity Instantly
-            </h1>
-            <p className="text-lg sm:text-xl text-muted-foreground mb-6">
-              Manage tasks efficiently with AI-powered insights and real-time collaboration.
-            </p>
-            {!isAuthenticated ? (
-              <Button
-                size="lg"
-                onClick={() => navigate("/auth")}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Get Started Free
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            ) : (
-              <Button
-                size="lg"
-                onClick={() => navigate("/dashboard")}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Go to Dashboard
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            )}
+          {/* Carousel Slides */}
+          <div className="relative h-[400px] sm:h-[450px] lg:h-[500px] xl:h-[550px]">
+            <AnimatePresence mode="wait">
+              {carouselSlides.map((slide, index) => {
+                if (index !== currentSlide) return null;
+                const Icon = slide.icon;
+  return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -50 }}
+                    transition={{ duration: 0.3 }}
+                    className={cn("absolute inset-0 p-6 sm:p-8 lg:p-12 xl:p-16", slide.bgColor)}
+                  >
+                    <div className="relative z-10 max-w-2xl xl:max-w-3xl h-full flex flex-col justify-center mx-auto">
+                      <div className="flex items-center gap-4 mb-4 sm:mb-6">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Icon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-primary" />
+      </div>
+    </div>
+                      <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 sm:mb-6 text-foreground leading-tight">
+                        {slide.title}
+                      </h1>
+                      <p className="text-base sm:text-lg lg:text-xl xl:text-2xl text-muted-foreground mb-6 sm:mb-8 max-w-xl">
+                        {slide.description}
+                      </p>
+                      <Button
+                        size="lg"
+                        onClick={slide.buttonAction}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 w-fit text-base sm:text-lg px-6 sm:px-8 py-6 sm:py-7"
+                      >
+                        {slide.buttonText}
+                        <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
-        </motion.div>
+        </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
