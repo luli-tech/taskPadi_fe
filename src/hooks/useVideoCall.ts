@@ -173,7 +173,14 @@ export const useVideoCall = (currentUserId: string) => {
       }
     };
 
+    const pingInterval = setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000); // 30 seconds
+
     socket.onclose = () => {
+      clearInterval(pingInterval);
       console.log("WebRTC signaling closed");
     };
 

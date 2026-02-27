@@ -169,7 +169,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex flex-col items-center justify-between py-20 bg-zinc-900 text-white overflow-hidden"
+        className="fixed inset-0 z-[100] flex flex-col items-center justify-between py-8 sm:py-20 bg-zinc-900 text-white overflow-hidden"
       >
         {/* Animated Background Pulse */}
         <div className="absolute inset-0 z-0 flex items-center justify-center opacity-20">
@@ -187,9 +187,9 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
             className="relative"
           >
             <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-            <Avatar className="h-32 w-32 border-4 border-white/10 relative z-10">
+            <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border-4 border-white/10 relative z-10">
               <AvatarImage src={remoteUser?.avatar_url} />
-              <AvatarFallback className="text-5xl bg-primary">
+              <AvatarFallback className="text-4xl sm:text-5xl bg-primary">
                 {remoteUser?.username?.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
@@ -205,28 +205,28 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
           </p>
         </div>
 
-        <div className="relative z-10 w-full max-w-xs flex justify-around items-center">
-          <div className="flex flex-col items-center gap-3">
+        <div className="relative z-10 w-full max-w-xs flex justify-around items-center px-4">
+          <div className="flex flex-col items-center gap-2 sm:gap-3">
             <Button
               onClick={onReject}
               size="lg"
               variant="destructive"
-              className="h-16 w-16 rounded-full shadow-xl hover:scale-110 transition-transform active:scale-95"
+              className="h-14 w-14 sm:h-16 sm:w-16 rounded-full shadow-xl hover:scale-110 transition-transform active:scale-95"
             >
-              <PhoneOff className="h-8 w-8" />
+              <PhoneOff className="h-7 w-7 sm:h-8 sm:w-8" />
             </Button>
-            <span className="text-sm font-medium text-zinc-400">Decline</span>
+            <span className="text-xs sm:text-sm font-medium text-zinc-400">Decline</span>
           </div>
 
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-2 sm:gap-3">
             <Button
               onClick={onAccept}
               size="lg"
-              className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 shadow-xl shadow-green-500/20 hover:scale-110 transition-transform active:scale-95 animate-bounce"
+              className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-green-500 hover:bg-green-600 shadow-xl shadow-green-500/20 hover:scale-110 transition-transform active:scale-95 animate-bounce"
             >
-              <Phone className="h-8 w-8 text-white fill-white" />
+              <Phone className="h-7 w-7 sm:h-8 sm:w-8 text-white fill-white" />
             </Button>
-            <span className="text-sm font-medium text-green-400">Accept</span>
+            <span className="text-xs sm:text-sm font-medium text-green-400">Accept</span>
           </div>
         </div>
 
@@ -308,16 +308,14 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
             </div>
           )}
 
-          {/* Local Video - Draggable (only on desktop/large view) */}
+          {/* Local Video - Picture-in-Picture */}
           {isVideo && localStream && !isMinimized && (
-            <motion.div 
-              drag
-              dragConstraints={{ top: -400, left: -600, right: 20, bottom: 20 }}
-              className="absolute bottom-24 right-6 w-1/4 max-w-[200px] aspect-[3/4] bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-white/10 z-20"
+            <div 
+              className="absolute bottom-36 right-4 sm:bottom-32 sm:right-6 w-28 sm:w-48 xl:w-64 aspect-[3/4] sm:aspect-video bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border-2 border-primary/50 z-20 pointer-events-none"
             >
               {isVideoOff ? (
                 <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                  <VideoOff className="h-8 w-8 text-zinc-600" />
+                  <VideoOff className="h-6 sm:h-8 w-6 sm:w-8 text-zinc-600" />
                 </div>
               ) : (
                 <video
@@ -328,7 +326,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                   className="w-full h-full object-cover -scale-x-100"
                 />
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* Overlay Head (Top Controls) */}
@@ -365,50 +363,50 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
 
         {/* Bottom Controls */}
         <motion.div 
-          animate={isMinimized ? { height: 0, opacity: 0 } : { height: 'auto', opacity: 1 }}
-          className="bg-zinc-900 border-t border-white/5 px-8 py-10 flex items-center justify-center gap-6 sm:gap-12"
+          animate={isMinimized ? { height: 0, opacity: 0, padding: 0 } : { height: 'auto', opacity: 1 }}
+          className="bg-zinc-900 border-t border-white/5 px-4 sm:px-8 py-6 sm:py-10 flex items-center justify-center gap-4 sm:gap-12"
         >
           {/* Mute Button */}
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-1.5 sm:gap-2">
             <Button
               size="icon"
               onClick={toggleMute}
               className={cn(
-                "h-14 w-14 rounded-full transition-all border border-white/5",
+                "h-12 w-12 sm:h-14 sm:w-14 rounded-full transition-all border border-white/5",
                 isMuted ? "bg-white text-black hover:bg-white/90" : "bg-zinc-800 text-white hover:bg-zinc-700"
               )}
             >
-              {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+              {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
             </Button>
-            <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Mute</span>
+            <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Mute</span>
           </div>
 
           {/* Video Toggle (only for video calls) */}
           {isVideo && (
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1.5 sm:gap-2">
               <Button
                 size="icon"
                 onClick={toggleVideo}
                 className={cn(
-                  "h-14 w-14 rounded-full transition-all border border-white/5",
+                  "h-12 w-12 sm:h-14 sm:w-14 rounded-full transition-all border border-white/5",
                   isVideoOff ? "bg-white text-black hover:bg-white/90" : "bg-zinc-800 text-white hover:bg-zinc-700"
                 )}
               >
-                {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                {isVideoOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
               </Button>
-              <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Video</span>
+              <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Video</span>
             </div>
           )}
 
           {/* Hang Up Button */}
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-1.5 sm:gap-2">
             <Button
               onClick={onEnd}
-              className="h-16 w-16 rounded-full bg-red-600 hover:bg-red-700 shadow-xl shadow-red-600/20 hover:scale-110 active:scale-95 transition-all group"
+              className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-red-600 hover:bg-red-700 shadow-xl shadow-red-600/20 hover:scale-110 active:scale-95 transition-all group"
             >
-              <PhoneOff className="h-8 w-8 text-white group-hover:rotate-[135deg] transition-transform duration-300" />
+              <PhoneOff className="h-7 w-7 sm:h-8 sm:w-8 text-white group-hover:rotate-[135deg] transition-transform duration-300" />
             </Button>
-            <span className="text-[10px] font-bold text-red-500 tracking-widest uppercase mt-[-5px]">End</span>
+            <span className="text-[9px] sm:text-[10px] font-bold text-red-500 tracking-widest uppercase">End</span>
           </div>
 
           {/* Speaker Toggle (Mock) */}
@@ -428,15 +426,15 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
 
           {/* Switch Camera */}
           {isVideo && (
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1.5 sm:gap-2">
               <Button
                 size="icon"
                 onClick={onFlipCamera}
-                className="h-14 w-14 rounded-full bg-zinc-800 text-white hover:bg-zinc-700 border border-white/5 active:rotate-180 transition-transform duration-500"
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-zinc-800 text-white hover:bg-zinc-700 border border-white/5 active:rotate-180 transition-transform duration-500"
               >
-                <Camera className="h-6 w-6" />
+                <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
               </Button>
-              <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Switch</span>
+              <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 tracking-widest uppercase">Switch</span>
             </div>
           )}
         </motion.div>

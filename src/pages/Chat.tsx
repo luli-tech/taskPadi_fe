@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
-import { useGetConversationsQuery, useGetConversationMessagesQuery, useSendMessageMutation, useUpdateMessageMutation, useDeleteMessageMutation, useCreateGroupMutation, useAddGroupMembersMutation, useGetGroupsQuery, useGetGroupMessagesQuery } from "@/store/api/chatApi";
+import { useGetConversationsQuery, useGetConversationMessagesQuery, useSendMessageMutation, useUpdateMessageMutation, useDeleteMessageMutation, useCreateGroupMutation, useAddGroupMembersMutation, useGetGroupsQuery, useGetGroupMessagesQuery, useGetGroupMembersQuery, useRemoveGroupMemberMutation } from "@/store/api/chatApi";
 import { useGetAllUsersQuery } from "@/store/api/usersApi";
 import { useAppSelector } from "@/store/hooks";
 import { Card } from "@/components/ui/card";
@@ -71,6 +71,7 @@ export default function Chat() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(chatParam);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isManageMembersOpen, setIsManageMembersOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,6 +79,7 @@ export default function Chat() {
   
   const [createGroup, { isLoading: isCreatingGroup }] = useCreateGroupMutation();
   const [addGroupMembers] = useAddGroupMembersMutation();
+  const [removeGroupMember] = useRemoveGroupMemberMutation();
 
   const { data: groups = [], isLoading: groupsLoading } = useGetGroupsQuery();
 
@@ -237,6 +239,13 @@ export default function Chat() {
       pollingInterval: selectedUserId ? 5000 : 0,
     }
   );
+
+  const { data: groupMembersData, isLoading: groupMembersLoading } = useGetGroupMembersQuery(selectedGroupId!, {
+    skip: !selectedGroupId,
+    pollingInterval: selectedGroupId ? 10000 : 0,
+  });
+
+  const groupMembers = useMemo(() => groupMembersData || [], [groupMembersData]);
 
   const { data: groupMessagesData, isLoading: groupMessagesLoading } = useGetGroupMessagesQuery(
     { groupId: selectedGroupId!, params: { page: 1, limit: 100 } },
@@ -854,6 +863,15 @@ export default function Chat() {
                       variant="ghost" 
                       size="icon" 
                       className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
+                      onClick={() => setIsManageMembersOpen(true)}
+                      title="Manage members"
+                    >
+                      <Users className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-white hover:bg-white/20 h-9 w-9 sm:h-10 sm:w-10"
                       onClick={() => selectedUserInfo && initiateGroupCall(selectedUserInfo.user_id, selectedUserInfo.username, 'video', selectedUserInfo.avatar_url || undefined)}
                       title="Group video call"
                     >
@@ -1288,6 +1306,129 @@ export default function Chat() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Manage Members Dialog */}
+      <Dialog open={isManageMembersOpen} onOpenChange={setIsManageMembersOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Manage Group Members</DialogTitle>
+            <DialogDescription>
+              Add or remove members from "{selectedUserInfo?.username}".
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col flex-1 min-h-0 gap-4">
+            <div className="space-y-4 flex-1 min-h-0 flex flex-col">
+              <div className="border rounded-md p-4 bg-muted/20">
+                <h4 className="text-sm font-semibold mb-3">Current Members</h4>
+                <div className="space-y-2">
+                  <CurrentMembersList 
+                    members={groupMembers}
+                    isLoading={groupMembersLoading}
+                    onRemove={async (userId) => {
+                      if (confirm("Remove this member?")) {
+                        await removeGroupMember({ groupId: selectedGroupId!, userId }).unwrap();
+                        toast({ title: "Member removed" });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0 flex flex-col">
+                <h4 className="text-sm font-semibold mb-2">Add New Members</h4>
+                <div className="relative mb-2">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users to add..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <ScrollArea className="flex-1 border rounded-md p-2">
+                  <div className="space-y-2">
+                    {filteredUsersForGroup
+                      .filter(u => !groupMembers.some(m => m.user_id === u.id))
+                      .map((member) => (
+                      <div
+                        key={member.id}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={member.avatar_url} />
+                          <AvatarFallback>
+                            {member.username.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{member.username}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              await addGroupMembers({
+                                groupId: selectedGroupId!,
+                                data: { user_id: member.id }
+                              }).unwrap();
+                              toast({ title: "Member added" });
+                            } catch (err: any) {
+                              toast({ title: "Failed to add member", description: err?.data?.error || "Unknown error", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsManageMembersOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
+  );
+}
+
+function CurrentMembersList({ members, isLoading, onRemove }: { members: GroupMember[], isLoading: boolean, onRemove: (userId: string) => void }) {
+  const { user } = useAppSelector((state) => state.auth);
+
+  if (isLoading) return <div className="text-center p-4 text-sm text-muted-foreground">Loading members...</div>;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {members.map((member) => (
+        <div key={member.id} className="flex items-center justify-between p-2 bg-background border rounded-md">
+          <div className="flex items-center gap-2 min-w-0">
+            <Avatar className="h-6 w-6">
+              <AvatarImage src={member.avatar_url || undefined} />
+              <AvatarFallback className="text-[10px]">
+                {member.username.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-xs font-medium truncate">{member.username}</span>
+            {member.role === 'creator' && (
+              <span className="text-[10px] bg-primary/10 text-primary px-1 rounded">Creator</span>
+            )}
+          </div>
+          {member.user_id !== user?.id && member.role !== 'creator' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onRemove(member.user_id)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
