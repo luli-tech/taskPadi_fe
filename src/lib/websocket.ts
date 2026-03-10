@@ -10,6 +10,8 @@ export enum WsMessageType {
   CallAccepted = "call_accepted",
   CallRejected = "call_rejected",
   CallEnded = "call_ended",
+  ReceiverRinging = "receiver_ringing",
+  ConnectionStateUpdated = "connection_state_updated",
   Error = "error",
   Ping = "ping",
   Pong = "pong",
@@ -131,6 +133,14 @@ export class WebSocketService {
 
   endCall(callId: string) {
     this.send("end_call", { call_id: callId });
+  }
+
+  notifyRinging(callId: string) {
+    this.send("notify_ringing", { call_id: callId });
+  }
+
+  updateConnectionState(callId: string, state: string) {
+    this.send("update_connection_state", { call_id: callId, state });
   }
 
   disconnect() {

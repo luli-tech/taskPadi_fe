@@ -19,6 +19,8 @@ export const VideoCallManager: React.FC = () => {
     remoteStream,
     participants,
     isGroupCall,
+    isRinging,
+    remoteConnectionState,
     acceptCall, 
     rejectCall, 
     endCall,
@@ -52,6 +54,8 @@ export const VideoCallManager: React.FC = () => {
       remoteStream={remoteStream}
       participants={participants}
       isGroupCall={isGroupCall}
+      isRinging={isRinging}
+      remoteConnectionState={remoteConnectionState}
       onAccept={acceptCall}
       onReject={rejectCall}
       onEnd={endCall}

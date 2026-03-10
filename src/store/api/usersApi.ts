@@ -80,9 +80,9 @@ export const usersApi = baseApi.injectEndpoints({
       },
       transformResponse: (response: User[] | PaginatedResponse<User> | { users: User[] } | { data: User[] }) => {
         if (Array.isArray(response)) return response;
-        if ('data' in response && 'total' in response) return response as PaginatedResponse<User>;
-        if ('users' in response) return response.users;
-        if ('data' in response) return response.data;
+        if (response && 'data' in response && 'total' in response && Array.isArray(response.data)) return response as PaginatedResponse<User>;
+        if (response && 'users' in response && Array.isArray(response.users)) return response.users;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
       providesTags: ["Users" as never],
@@ -92,8 +92,8 @@ export const usersApi = baseApi.injectEndpoints({
       query: () => "/admin/users",
       transformResponse: (response: User[] | { users: User[] } | { data: User[] }) => {
         if (Array.isArray(response)) return response;
-        if ('users' in response) return response.users;
-        if ('data' in response) return response.data;
+        if (response && 'users' in response && Array.isArray(response.users)) return response.users;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
       providesTags: ["Users" as never],
@@ -117,8 +117,8 @@ export const usersApi = baseApi.injectEndpoints({
       query: () => "/admin/tasks",
       transformResponse: (response: any[] | { tasks: any[] } | { data: any[] }) => {
         if (Array.isArray(response)) return response;
-        if ('tasks' in response) return response.tasks;
-        if ('data' in response) return response.data;
+        if (response && 'tasks' in response && Array.isArray(response.tasks)) return response.tasks;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
     }),

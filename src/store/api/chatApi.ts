@@ -81,8 +81,8 @@ export const chatApi = baseApi.injectEndpoints({
       query: () => "/messages/conversations",
       transformResponse: (response: ConversationUser[] | { conversations: ConversationUser[] } | { data: ConversationUser[] }) => {
         if (Array.isArray(response)) return response;
-        if ('conversations' in response) return response.conversations;
-        if ('data' in response) return response.data;
+        if (response && 'conversations' in response && Array.isArray(response.conversations)) return response.conversations;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
       providesTags: ["Messages" as never],
@@ -106,9 +106,9 @@ export const chatApi = baseApi.injectEndpoints({
       },
       transformResponse: (response: Message[] | PaginatedMessageResponse | { messages: Message[] } | { data: Message[] }) => {
         if (Array.isArray(response)) return response;
-        if ('data' in response && 'total' in response) return response as PaginatedMessageResponse;
-        if ('messages' in response) return response.messages;
-        if ('data' in response) return response.data;
+        if (response && 'data' in response && 'total' in response && Array.isArray(response.data)) return response as PaginatedMessageResponse;
+        if (response && 'messages' in response && Array.isArray(response.messages)) return response.messages;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
       providesTags: (_, __, { userId }) => [{ type: "Messages" as never, id: userId }],
@@ -123,9 +123,9 @@ export const chatApi = baseApi.injectEndpoints({
       },
       transformResponse: (response: Message[] | PaginatedMessageResponse | { messages: Message[] } | { data: Message[] }) => {
         if (Array.isArray(response)) return response;
-        if ('data' in response && 'total' in response) return response as PaginatedMessageResponse;
-        if ('messages' in response) return response.messages;
-        if ('data' in response) return response.data;
+        if (response && 'data' in response && 'total' in response && Array.isArray(response.data)) return response as PaginatedMessageResponse;
+        if (response && 'messages' in response && Array.isArray(response.messages)) return response.messages;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
       providesTags: (_, __, { groupId }) => [{ type: "Messages" as never, id: `group-${groupId}` }],
@@ -165,8 +165,8 @@ export const chatApi = baseApi.injectEndpoints({
       query: () => "/groups",
       transformResponse: (response: Group[] | { groups: Group[] } | { data: Group[] }) => {
         if (Array.isArray(response)) return response;
-        if ('groups' in response) return response.groups;
-        if ('data' in response) return response.data;
+        if (response && 'groups' in response && Array.isArray(response.groups)) return response.groups;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
       providesTags: ["Groups" as never],
@@ -214,8 +214,8 @@ export const chatApi = baseApi.injectEndpoints({
       query: (groupId) => `/groups/${groupId}/members`,
       transformResponse: (response: GroupMember[] | { members: GroupMember[] } | { data: GroupMember[] }) => {
         if (Array.isArray(response)) return response;
-        if ('members' in response) return response.members;
-        if ('data' in response) return response.data;
+        if (response && 'members' in response && Array.isArray(response.members)) return response.members;
+        if (response && 'data' in response && Array.isArray(response.data)) return response.data;
         return [];
       },
       providesTags: (_, __, groupId) => [{ type: "Groups" as never, id: groupId }],

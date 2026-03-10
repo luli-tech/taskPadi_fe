@@ -32,6 +32,8 @@ interface VideoCallOverlayProps {
   remoteStream: MediaStream | null;
   participants: CallParticipant[];
   isGroupCall: boolean;
+  isRinging?: boolean;
+  remoteConnectionState?: 'connecting' | 'connected' | 'reconnecting' | 'failed' | null;
   onAccept: () => void;
   onReject: () => void;
   onEnd: () => void;
@@ -56,6 +58,8 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
   remoteStream,
   participants,
   isGroupCall,
+  isRinging,
+  remoteConnectionState,
   onAccept,
   onReject,
   onEnd,
@@ -277,6 +281,16 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
               />
             </div>
           )}
+          {/* Reconnecting overlay mask */}
+          {remoteConnectionState && ['connecting', 'reconnecting', 'failed'].includes(remoteConnectionState) && status === CallStatus.ACTIVE && (
+            <div className="absolute inset-0 bg-black/70 z-30 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
+              <p className="text-white text-lg font-medium">{remoteConnectionState === 'failed' ? 'Connection Failed' : 'Poor Connection...'}</p>
+              <p className="text-zinc-300 text-sm mt-2 text-center text-balance">
+                {remoteConnectionState === 'failed' ? 'Please end the call and try again.' : `Waiting for ${remoteUser?.username || 'user'} to reconnect.`}
+              </p>
+            </div>
+          )}
           
           {(!isVideo || status !== CallStatus.ACTIVE) && (
             <div className="flex flex-col items-center">
@@ -298,10 +312,10 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
               </motion.div>
               
               {!isMinimized && (
-                <div className="mt-8 text-center">
+                <div className="mt-8 text-center relative z-40">
                   <h2 className="text-3xl font-bold">{remoteUser?.username}</h2>
                   <p className="mt-2 text-zinc-400 font-medium tracking-wider">
-                    {status === CallStatus.OUTGOING ? "CALLING..." : formatDuration(duration)}
+                    {status === CallStatus.OUTGOING ? (isRinging ? "RINGING..." : "CALLING...") : formatDuration(duration)}
                   </p>
                 </div>
               )}

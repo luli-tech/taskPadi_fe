@@ -62,7 +62,8 @@ export default function Chat() {
   const allUsers = useMemo(() => {
     if (!allUsersData) return [];
     if (Array.isArray(allUsersData)) return allUsersData;
-    if ('data' in allUsersData) return allUsersData.data;
+    if (allUsersData && 'data' in allUsersData && Array.isArray(allUsersData.data)) return allUsersData.data;
+    if (allUsersData && 'users' in allUsersData && Array.isArray(allUsersData.users)) return (allUsersData as any).users;
     return [];
   }, [allUsersData]);
 
@@ -158,7 +159,7 @@ export default function Chat() {
     if (!chatListSearch.trim()) return userList;
     const query = chatListSearch.toLowerCase();
     return userList.filter(u => 
-      u.username.toLowerCase().includes(query) || 
+      (u.username && u.username.toLowerCase().includes(query)) || 
       (u.email && u.email.toLowerCase().includes(query))
     );
   }, [userList, chatListSearch]);
@@ -261,7 +262,8 @@ export default function Chat() {
   const messages = useMemo(() => {
     if (!rawMessages) return [];
     if (Array.isArray(rawMessages)) return rawMessages;
-    if ('data' in rawMessages) return rawMessages.data;
+    if (rawMessages && 'data' in rawMessages && Array.isArray(rawMessages.data)) return rawMessages.data;
+    if (rawMessages && 'messages' in rawMessages && Array.isArray(rawMessages.messages)) return (rawMessages as any).messages;
     return [];
   }, [rawMessages]);
 
@@ -487,8 +489,8 @@ export default function Chat() {
     if (!searchQuery.trim()) return availableUsersForGroup;
     const query = searchQuery.toLowerCase();
     return availableUsersForGroup.filter(u => 
-      u.username.toLowerCase().includes(query) || 
-      u.email.toLowerCase().includes(query)
+      (u.username && u.username.toLowerCase().includes(query)) || 
+      (u.email && u.email.toLowerCase().includes(query))
     );
   }, [availableUsersForGroup, searchQuery]);
 
@@ -498,7 +500,8 @@ export default function Chat() {
       e.stopPropagation();
     }
     setSelectedMemberIds(prev => {
-      const next = new Set(prev);
+      const current = prev instanceof Set ? prev : new Set<string>();
+      const next = new Set(current);
       if (next.has(userId)) {
         next.delete(userId);
       } else {
@@ -705,7 +708,7 @@ export default function Chat() {
                             "text-white font-semibold",
                             chatUser.isGroup ? "bg-[#00a884]" : "bg-[#25d366]"
                           )}>
-                            {chatUser.username.charAt(0).toUpperCase()}
+                            {chatUser.username?.charAt(0).toUpperCase() || "U"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0 text-left">
@@ -963,7 +966,7 @@ export default function Chat() {
                             )}>
                               <AvatarImage src={msg.image_url || undefined} /> {/* This would ideally be sender avatar */}
                               <AvatarFallback className="bg-[#008069] text-white text-[10px]">
-                                {msg.sender_id.charAt(0).toUpperCase()}
+                                {msg.sender_id?.charAt(0).toUpperCase() || "U"}
                               </AvatarFallback>
                             </Avatar>
                           )}
@@ -1273,7 +1276,7 @@ export default function Chat() {
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={member.avatar_url} />
                           <AvatarFallback>
-                            {member.username.charAt(0).toUpperCase()}
+                            {member.username?.charAt(0).toUpperCase() || "U"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
@@ -1358,7 +1361,7 @@ export default function Chat() {
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={member.avatar_url} />
                           <AvatarFallback>
-                            {member.username.charAt(0).toUpperCase()}
+                            {member.username?.charAt(0).toUpperCase() || "U"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
@@ -1409,7 +1412,7 @@ function CurrentMembersList({ members, isLoading, onRemove }: { members: GroupMe
             <Avatar className="h-6 w-6">
               <AvatarImage src={member.avatar_url || undefined} />
               <AvatarFallback className="text-[10px]">
-                {member.username.charAt(0).toUpperCase()}
+                {member.username?.charAt(0).toUpperCase() || "U"}
               </AvatarFallback>
             </Avatar>
             <span className="text-xs font-medium truncate">{member.username}</span>

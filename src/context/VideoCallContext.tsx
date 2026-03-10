@@ -12,6 +12,8 @@ interface VideoCallContextType {
   remoteStream: MediaStream | null;
   participants: CallParticipant[];
   isGroupCall: boolean;
+  isRinging: boolean;
+  remoteConnectionState: 'connecting' | 'connected' | 'reconnecting' | 'failed' | null;
   availableDevices: MediaDeviceInfo[];
   selectedAudioInput: string;
   selectedAudioOutput: string;

@@ -38,6 +38,8 @@ export const useVideoCall = (currentUserId: string) => {
   const [selectedAudioInput, setSelectedAudioInput] = useState<string>('');
   const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>('');
   const [selectedVideoInput, setSelectedVideoInput] = useState<string>('');
+  const [isRinging, setIsRinging] = useState(false);
+  const [remoteConnectionState, setRemoteConnectionState] = useState<'connecting' | 'connected' | 'reconnecting' | 'failed' | null>(null);
   
   const statusRef = useRef<CallStatus>(CallStatus.IDLE);
   const activeCallIdRef = useRef<string | null>(null);
@@ -103,11 +105,16 @@ export const useVideoCall = (currentUserId: string) => {
     setRemoteUser(null);
     setParticipants([]);
     setIsGroupCall(false);
+    setIsRinging(false);
+    setRemoteConnectionState(null);
   }, [localStream, remoteStream, updateStatus, updateActiveCallId]);
 
-  const connectToMediaRelay = useCallback((path: string, currentLocalStream: MediaStream | null, isInitiator: boolean = false) => {
+  const connectToMediaRelay = useCallback((path: string, stream: MediaStream | null, isInitiator: boolean = false) => {
     if (mediaWs.current) mediaWs.current.close();
     if (peerConnectionRef.current) peerConnectionRef.current.close();
+
+    const currentLocalStream = stream || localStreamRef.current;
+    console.log("Connecting to media relay. Local stream present:", !!currentLocalStream);
 
     const originalWsUrl = wsService.getUrl();
     const baseUrl = originalWsUrl.replace('wss://', '').replace('ws://', '').split('/api/')[0];
@@ -135,6 +142,19 @@ export const useVideoCall = (currentUserId: string) => {
     pc.onicecandidate = (event) => {
       if (event.candidate && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'ice-candidate', candidate: event.candidate }));
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE Connection State:', pc.iceConnectionState);
+      if (activeCallIdRef.current) {
+        if (['disconnected', 'failed', 'closed'].includes(pc.iceConnectionState)) {
+          wsService.updateConnectionState(activeCallIdRef.current, 'reconnecting');
+        } else if (['connected', 'completed'].includes(pc.iceConnectionState)) {
+          wsService.updateConnectionState(activeCallIdRef.current, 'connected');
+        } else if (pc.iceConnectionState === 'new' || pc.iceConnectionState === 'checking') {
+          wsService.updateConnectionState(activeCallIdRef.current, 'connecting');
+        }
       }
     };
 
@@ -206,6 +226,8 @@ export const useVideoCall = (currentUserId: string) => {
           avatar_url: payload.caller_avatar_url || payload.sender_avatar_url
         });
         updateStatus(CallStatus.INCOMING);
+        // Explicitly notify caller that we are ringing
+        wsService.notifyRinging(payload.call_id || payload.callId);
       }
     });
 
@@ -224,7 +246,7 @@ export const useVideoCall = (currentUserId: string) => {
         }));
 
         if (payload.media_ws_path || payload.mediaWsPath) {
-          connectToMediaRelay(payload.media_ws_path || payload.mediaWsPath, localStream, true);
+          connectToMediaRelay(payload.media_ws_path || payload.mediaWsPath, localStreamRef.current, true);
         }
       }
     });
@@ -249,11 +271,27 @@ export const useVideoCall = (currentUserId: string) => {
       }
     });
 
+    const unsubRinging = wsService.subscribe(WsMessageType.ReceiverRinging, (data) => {
+      const payload = data.payload || data.content || data;
+      if (String(payload.call_id || payload.callId) === String(activeCallIdRef.current)) {
+        setIsRinging(true);
+      }
+    });
+
+    const unsubConnectionState = wsService.subscribe(WsMessageType.ConnectionStateUpdated, (data) => {
+      const payload = data.payload || data.content || data;
+      if (String(payload.call_id || payload.callId) === String(activeCallIdRef.current)) {
+        setRemoteConnectionState(payload.state as 'connecting' | 'connected' | 'reconnecting' | 'failed');
+      }
+    });
+
     return () => {
       unsubInitiated();
       unsubAccepted();
       unsubRejected();
       unsubEnded();
+      unsubRinging();
+      unsubConnectionState();
     };
   }, [currentUserId, connectToMediaRelay, cleanup, toast, updateStatus, localStream]);
 
@@ -666,6 +704,8 @@ export const useVideoCall = (currentUserId: string) => {
     remoteStream,
     participants,
     isGroupCall,
+    isRinging,
+    remoteConnectionState,
     initiateCall,
     initiateGroupCall,
     addParticipantToCall,
